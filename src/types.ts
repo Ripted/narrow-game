@@ -100,6 +100,8 @@ export interface Building extends Entity {
   wallHeight: number;
   /** Roof/accent colour; `color` is the wall colour. */
   roofColor: string;
+  /** Location id this building sits in. */
+  zone: string;
 }
 
 /** Human-readable kind, used for interaction prompts and minimap tooltips. */
@@ -121,6 +123,97 @@ export interface NPC extends Entity {
   portrait?: string;
   hp?: number;
   boss?: boolean;
+  /** Optional named route the NPC walks during the day. */
+  scheduleId?: string;
+  /** Building id this NPC retreats into at night (hidden from the exterior). */
+  nightBuildingId?: string;
+}
+
+/** A single waypoint on a schedule route, in world coordinates. */
+export interface ScheduleWaypoint {
+  x: number;
+  y: number;
+  /** Seconds to linger once the waypoint is reached. */
+  wait?: number;
+}
+
+export interface Schedule {
+  id: string;
+  waypoints: ScheduleWaypoint[];
+  /** Movement speed in px/s while travelling between waypoints. */
+  speed: number;
+}
+
+export type InteractiveKind = 'chest' | 'sign' | 'lever' | 'campfire';
+
+/**
+ * A hand-placed interactive fixture. Unlike props these can be used: chests
+ * yield loot, signs are readable, levers open named gates and campfires heal.
+ */
+export interface Interactive extends Entity {
+  type: 'object';
+  interactiveKind: InteractiveKind;
+  /** Gate opened by a lever (levers only). */
+  gateId?: string;
+  /** Loot granted once by a chest. */
+  itemId?: string;
+  gold?: number;
+  /** Readable text for signs. */
+  text?: string;
+  /** Flavour text shown on use. */
+  description?: string;
+  /** Whether the fixture has already been used (chest opened, lever pulled). */
+  used?: boolean;
+}
+
+/**
+ * A solid barrier that blocks passage until its linked lever is pulled (or its
+ * `openFlag` is set).
+ */
+export interface Gate extends Entity {
+  type: 'object';
+  /** Lever flag that opens this gate. */
+  openFlag: string;
+  open: boolean;
+}
+
+/** A door on a building that leads into an interior room. */
+export interface Door {
+  buildingId: string;
+  interiorId: string;
+  /** World-space point the player stands on to enter. */
+  x: number;
+  y: number;
+}
+
+/** A walkable room behind a building's door, generated in local coordinates. */
+export interface Interior {
+  id: string;
+  name: string;
+  /** Which building generated it. */
+  buildingId: string;
+  buildingKind: BuildingKind;
+  width: number;
+  height: number;
+  /** Where the player appears on entry. */
+  spawn: Vector2;
+  /** The step-off tile back to the exterior. */
+  exit: Vector2;
+  /** Solid furniture blocks, in local coordinates. */
+  furnitures: { x: number; y: number; w: number; h: number; color: string; kind: string }[];
+  /** Ambient floor tint. */
+  floor: string;
+  wall: string;
+  /** NPC ids present inside (at night, a home owner). */
+  occupants: string[];
+}
+
+export interface QuestMarker {
+  questId: string;
+  locationId: string;
+  x: number;
+  y: number;
+  label: string;
 }
 
 export interface WorldObject extends Entity {

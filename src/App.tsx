@@ -12,9 +12,12 @@ import { BUILDINGS } from './world/buildings';
 import { LOCATIONS, LOCATION_MINIMAP_COLORS } from './data/locations';
 import { DIALOGUE } from './data/characters';
 import { ITEMS, STARTING_ITEM } from './data/items';
-import { DialogueNode, GameState, Vector2, Achievement } from './types';
-import { StoryManager } from './game/story';
+import { NPC as NpcType, DialogueNode, GameState, Vector2, Achievement, Interior } from './types';
+import { StoryManager, QUEST_MARKERS } from './game/story';
 import { StateManager, SLOT_COUNT } from './game/state';
+import { WorldRuntime } from './game/world';
+import { INTERACTIVES } from './world/interactives';
+import { BUILDING_LABELS } from './types';
 import { AudioManager } from './audio';
 import { CharacterPreview } from './components/CharacterPreview';
 
@@ -120,6 +123,15 @@ export default function App() {
     player: Player;
   } | null>(null);
 
+  // Living world: clock, wandering NPCs, doors, interiors and gates.
+  const worldRef = useRef<WorldRuntime | null>(null);
+  const getWorld = useCallback(() => {
+    if (!worldRef.current) worldRef.current = new WorldRuntime();
+    return worldRef.current;
+  }, []);
+  const activeInteriorRef = useRef<Interior | null>(null);
+  const [insideName, setInsideName] = useState<string | null>(null);
+
   const addToast = useCallback((title: string, description: string) => {
     const id = ++toastIdRef.current;
     setToasts(prev => [...prev, { id, title, description }]);
@@ -137,6 +149,10 @@ export default function App() {
     const char = CHARACTERS.find(c => c.id === charId)!;
     const name = charId === 'custom' ? (customName || 'Newcomer') : char.name;
     engineRef.current = null;
+    worldRef.current = new WorldRuntime();
+    activeInteriorRef.current = null;
+    setInsideName(null);
+    lastZoneRef.current = '';
     setEquippedItemId(STARTING_ITEM);
     setGameState(newGameState(name, charId));
     getAudio().blip();
@@ -144,6 +160,10 @@ export default function App() {
 
   const loadState = (saved: GameState) => {
     engineRef.current = null;
+    worldRef.current = new WorldRuntime();
+    activeInteriorRef.current = null;
+    setInsideName(null);
+    lastZoneRef.current = '';
     setGameState(normalizeState(saved));
     getAudio().blip();
   };
@@ -239,6 +259,32 @@ export default function App() {
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = 'rgba(0,0,0,0.75)';
       ctx.fillRect(0, 0, w, h);
+
+      // Inside a building: show a compact room plan instead of the world map.
+      if (activeInteriorRef.current) {
+        const room = activeInteriorRef.current;
+        const pad = 14;
+        const rw = w - pad * 2;
+        const rh = h - pad * 2;
+        const rs = Math.min(rw / room.width, rh / room.height);
+        const ox = pad + (rw - room.width * rs) / 2;
+        const oy = pad + (rh - room.height * rs) / 2;
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillRect(ox, oy, room.width * rs, room.height * rs);
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        room.furnitures.forEach(f => ctx.fillRect(ox + f.x * rs, oy + f.y * rs, Math.max(1, f.w * rs), Math.max(1, f.h * rs)));
+        // Exit mat.
+        ctx.fillStyle = 'rgba(255,208,112,0.7)';
+        ctx.fillRect(ox + (room.exit.x - 30) * rs, oy + (room.height - 40) * rs, 60 * rs, 18 * rs);
+        // Player.
+        ctx.fillStyle = '#00ffff';
+        ctx.beginPath();
+        ctx.arc(ox + (player.pos.x + player.size.x / 2) * rs, oy + (player.pos.y + player.size.y / 2) * rs, 3, 0, Math.PI * 2);
+        ctx.fill();
+        void cam;
+        return;
+      }
+
       const sx = w / MAP_WIDTH;
       const sy = h / MAP_HEIGHT;
       Object.values(LOCATIONS).forEach((loc: any) => {
@@ -265,10 +311,40 @@ export default function App() {
         ctx.fillStyle = b.roofColor;
         ctx.fillRect(b.pos.x * sx, b.pos.y * sy, Math.max(1, b.size.x * sx), Math.max(1, b.size.y * sy * 0.4));
       });
-      // NPC markers
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      NPCS.forEach(npc => {
+      // Fixtures: campfires/levers glow, chests read as gold ticks.
+      INTERACTIVES.forEach(it => {
+        const cx = (it.pos.x + it.size.x / 2) * sx;
+        const cy = (it.pos.y + it.size.y / 2) * sy;
+        ctx.fillStyle = it.interactiveKind === 'campfire' ? '#ff8a3a'
+          : it.interactiveKind === 'lever' ? '#c9b06a'
+          : it.interactiveKind === 'chest' ? '#ffd070'
+          : 'rgba(200,200,200,0.6)';
+        ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
+      });
+      // Gates.
+      (worldRef.current?.gates || []).forEach(g => {
+        ctx.fillStyle = g.open ? 'rgba(120,220,120,0.7)' : 'rgba(255,90,60,0.85)';
+        ctx.fillRect(g.pos.x * sx - 1, g.pos.y * sy - 1, Math.max(2, g.size.x * sx), Math.max(2, g.size.y * sy));
+      });
+      // NPC markers (live positions).
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      (worldRef.current?.visibleNpcs() || NPCS).forEach(npc => {
         ctx.fillRect(npc.pos.x * sx - 1, npc.pos.y * sy - 1, 3, 3);
+      });
+      // Quest markers, one pulse per active quest.
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 350);
+      gameState.activeQuests.forEach(title => {
+        const mk = QUEST_MARKERS[title];
+        if (!mk) return;
+        const mx = mk.x * sx;
+        const my = mk.y * sy;
+        ctx.strokeStyle = `rgba(255,170,0,${0.5 + pulse * 0.5})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(mx, my, 4 + pulse * 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,170,0,0.9)';
+        ctx.fillRect(mx - 1, my - 1, 2, 2);
       });
       // Player marker
       ctx.fillStyle = '#00ffff';
@@ -285,109 +361,195 @@ export default function App() {
       const now = performance.now();
       const dt = now - lastFrame;
       lastFrame = now;
+      const world = getWorld();
+      world.update(Math.min(dt, 100) / 1000);
 
       const paused = isPaused || !!ending;
       const inDialogue = !!dialogueRef.current;
-      if (!inDialogue && !paused) {
-        if (dt > 0) playtimeRef.current += dt;
-        const movement = input.getMovement();
-        player.update(movement);
-        camera.update(player.pos);
+      const interior = activeInteriorRef.current;
 
-        if (movement.x !== 0 || movement.y !== 0) {
-          if (Math.random() < 0.08) getAudio().step();
-        }
-
-        // One-shot actions (edge-triggered, not held-key reads).
-        if (input.consumePressed('q') || input.consumeAction() === 'quests') {
-          setShowQuestLog(v => !v);
-        }
-        if (input.consumePressed('i') || input.consumeAction() === 'inventory') {
-          setShowInventory(v => !v);
-        }
-        if (input.consumePressed('escape')) {
-          setIsPaused(true);
-        }
-      }
-
-      // Interaction / combat resolution.
-      const boss = NPCS.find(n => n.id === 'arrow_ghost');
-      const interactables = [...NPCS, ...WORLD_OBJECTS];
-      let nearest: any = null;
-      let nearestDist = Infinity;
-      for (const obj of interactables) {
-        const dist = Math.hypot(player.pos.x - obj.pos.x, player.pos.y - obj.pos.y);
-        if (dist < INTERACT_RADIUS && dist < nearestDist) {
-          nearestDist = dist;
-          nearest = obj;
-        }
-      }
-
-      const wantInteract = input.consumePressed('e') || input.consumeAction() === 'interact';
       const fighting = gameState.flags.arrow_ghost_fight_started === true &&
         gameState.flags.arrow_ghost_defeated !== true;
 
-      if (nearest) {
-        setInteractPrompt(
-          nearest.id === 'arrow_ghost' && fighting
-            ? 'Press E to ATTACK'
-            : `Press E to interact with ${nearest.name}`
-        );
-      } else {
-        setInteractPrompt(null);
-      }
+      let nearest: any = null;
+      let nearestDist = Infinity;
 
-      if (wantInteract && !dialogueRef.current) {
-        // Combat branch: strike the boss when the fight has begun.
-        if (fighting && nearest && nearest.id === 'arrow_ghost') {
-          strikeBoss();
-        } else if (nearest) {
-          applyInteract(nearest);
-        }
-      }
+      if (interior) {
+        // ---- Walking inside a building -------------------------------------
+        // Night owner stands mid-room; that is the only thing to talk to inside.
+        const occupant = interior.occupants.map(id => world.npcById(id)).find(Boolean);
+        const occPos = { x: interior.width / 2, y: interior.height * 0.45 };
 
-      // Boss retaliation.
-      if (fighting && !paused && boss) {
-        const dist = Math.hypot(player.pos.x - boss.pos.x, player.pos.y - boss.pos.y);
-        if (dist < INTERACT_RADIUS + 20 && now - bossHitCooldownRef.current > 1200) {
-          bossHitCooldownRef.current = now;
-          getAudio().hurt();
-          setGameState(prev => {
-            if (!prev) return null;
-            const hp = Math.max(0, prev.player.hp - 8);
-            if (hp <= 0) {
-              return {
-                ...prev,
-                player: { ...prev.player, hp: 0 },
-                flags: { ...prev.flags, game_ended: true },
-              };
-            }
-            return { ...prev, player: { ...prev.player, hp } };
-          });
-        }
-      }
-
-      // Area tracking + autosave / zone audio.
-      const locId = CollisionSystem.locationAt(player.pos);
-      if (locId) {
-        const loc: any = Object.values(LOCATIONS).find((l: any) => l.id === locId);
-        if (loc && loc.name !== currentArea) {
-          setCurrentArea(loc.name);
-        }
-        if (locId !== lastZoneRef.current) {
-          lastZoneRef.current = locId;
-          getAudio().setZone(locId);
-          if (locId === 'dev_room') {
-            setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, visited_dev_room: true }, currentLocation: 'dev_room' }) : null);
+        if (!inDialogue && !paused) {
+          if (dt > 0) playtimeRef.current += dt;
+          const movement = input.getMovement();
+          const roomSolids = interior.furnitures.map(f => ({ pos: { x: f.x, y: f.y }, size: { x: f.w, y: f.h } }));
+          player.update(movement, roomSolids);
+          player.clampToRoom(interior.width, interior.height);
+          // Rooms are smaller than the viewport, so frame the room instead of
+          // following the player.
+          camera.pos = {
+            x: (interior.width - camera.viewport.x) / 2,
+            y: (interior.height - camera.viewport.y) / 2,
+          };
+          camera.target = { ...camera.pos };
+          if (movement.x !== 0 || movement.y !== 0) {
+            if (Math.random() < 0.08) getAudio().step();
           }
-          // Autosave on area change.
+          if (input.consumePressed('q') || input.consumeAction() === 'quests') setShowQuestLog(v => !v);
+          if (input.consumePressed('i') || input.consumeAction() === 'inventory') setShowInventory(v => !v);
+          if (input.consumePressed('escape')) setIsPaused(true);
+        }
+
+        const onExitMat = atRoomExit(interior);
+        const occNear = occupant && Math.hypot(player.pos.x - occPos.x, player.pos.y - occPos.y) < INTERACT_RADIUS;
+        let prompt: string | null = null;
+        if (onExitMat) prompt = 'Press E to leave';
+        else if (occNear) prompt = `Press E to talk to ${occupant!.name}`;
+        if (!inDialogue && !paused) setInteractPrompt(prompt);
+
+        const act = !inDialogue && !paused ? (input.consumePressed('e') || input.consumeAction() === 'interact') : false;
+        if (act) {
+          if (onExitMat) exitInterior();
+          else if (occNear) applyInteract({ ...(occupant as NpcType), pos: occPos });
+        }
+
+        // ---- Render the room ----
+        renderer.clear();
+        renderer.ctx.save();
+        camera.apply(renderer.ctx);
+        renderer.drawInteriorScene(interior, camera, world.timeOfDay);
+        if (occupant) {
+          renderer.drawEntity({ ...(occupant as NpcType), pos: occPos }, camera, undefined, dt);
+        }
+        renderer.drawEntity(player, camera, undefined, dt);
+        renderer.ctx.restore();
+      } else {
+        // ---- Walking the exterior world ------------------------------------
+        if (!inDialogue && !paused) {
+          if (dt > 0) playtimeRef.current += dt;
+          const movement = input.getMovement();
+          const solids = [...WORLD_OBJECTS, ...world.visibleNpcs(), ...BUILDINGS, ...world.exteriorSolids()];
+          player.update(movement, solids);
+          player.clampToWorld();
+          camera.update(player.pos);
+          if (movement.x !== 0 || movement.y !== 0) {
+            if (Math.random() < 0.08) getAudio().step();
+          }
+          if (input.consumePressed('q') || input.consumeAction() === 'quests') setShowQuestLog(v => !v);
+          if (input.consumePressed('i') || input.consumeAction() === 'inventory') setShowInventory(v => !v);
+          if (input.consumePressed('escape')) setIsPaused(true);
+        }
+
+        // Interactables: NPCs, world objects and fixtures.
+        const interactables: any[] = [...world.visibleNpcs(), ...WORLD_OBJECTS, ...INTERACTIVES];
+        for (const obj of interactables) {
+          const cx = obj.pos.x + (obj.size?.x ?? 0) / 2;
+          const cy = obj.pos.y + (obj.size?.y ?? 0) / 2;
+          const dist = Math.hypot(
+            player.pos.x + player.size.x / 2 - cx,
+            player.pos.y + player.size.y / 2 - cy
+          );
+          if (dist < INTERACT_RADIUS && dist < nearestDist) {
+            nearestDist = dist;
+            nearest = obj;
+          }
+        }
+
+        // Door prompt takes priority when standing on one.
+        const door = world.doorAt(player.pos, player.size, 46);
+        const wantInteract = input.consumePressed('e') || input.consumeAction() === 'interact';
+
+        if (nearest) {
+          const label = nearest.type === 'building'
+            ? BUILDING_LABELS[nearest.buildingKind as keyof typeof BUILDING_LABELS]
+            : nearest.name;
+          if (nearest.id === 'arrow_ghost' && fighting) {
+            setInteractPrompt('Press E to ATTACK');
+          } else if (nearest.interactiveKind === 'chest') {
+            setInteractPrompt(nearest.used ? 'Opened' : 'Press E to open chest');
+          } else if (nearest.interactiveKind === 'campfire') {
+            setInteractPrompt('Press E to rest');
+          } else if (nearest.interactiveKind === 'lever') {
+            setInteractPrompt(nearest.used ? 'Lever pulled' : 'Press E to pull lever');
+          } else {
+            setInteractPrompt(`Press E to interact with ${label}`);
+          }
+        } else if (door) {
+          setInteractPrompt('Press E to enter');
+        } else {
+          setInteractPrompt(null);
+        }
+
+        if (wantInteract && !dialogueRef.current) {
+          if (fighting && nearest && nearest.id === 'arrow_ghost') {
+            strikeBoss();
+          } else if (nearest) {
+            applyInteract(nearest);
+          } else if (door) {
+            enterInterior(door.interiorId);
+          }
+        }
+
+        // Boss retaliation.
+        const boss = world.npcById('arrow_ghost');
+        if (fighting && !paused && boss) {
+          const dist = Math.hypot(player.pos.x - boss.pos.x, player.pos.y - boss.pos.y);
+          if (dist < INTERACT_RADIUS + 20 && now - bossHitCooldownRef.current > 1200) {
+            bossHitCooldownRef.current = now;
+            getAudio().hurt();
+            setGameState(prev => {
+              if (!prev) return null;
+              const hp = Math.max(0, prev.player.hp - 8);
+              if (hp <= 0) {
+                return { ...prev, player: { ...prev.player, hp: 0 }, flags: { ...prev.flags, game_ended: true } };
+              }
+              return { ...prev, player: { ...prev.player, hp } };
+            });
+          }
+        }
+
+        // Area tracking + autosave / zone audio.
+        const locId = CollisionSystem.locationAt(player.pos);
+        if (locId) {
+          const loc: any = Object.values(LOCATIONS).find((l: any) => l.id === locId);
+          if (loc && loc.name !== currentArea) setCurrentArea(loc.name);
+          if (locId !== lastZoneRef.current) {
+            lastZoneRef.current = locId;
+            getAudio().setZone(locId);
+            if (locId === 'dev_room') {
+              setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, visited_dev_room: true }, currentLocation: 'dev_room' }) : null);
+            }
+            if (locId === 'dead_zone') {
+              setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, visited_dead_zone: true }, currentLocation: 'dead_zone' }) : null);
+            }
+            autosave(player.pos);
+          }
+        }
+
+        if (now - lastAutosaveRef.current > 30000) {
+          lastAutosaveRef.current = now;
           autosave(player.pos);
         }
-      }
 
-      if (now - lastAutosaveRef.current > 30000) {
-        lastAutosaveRef.current = now;
-        autosave(player.pos);
+        // Record that the player has seen nightfall.
+        if (world.night && gameState.flags.saw_night !== true) {
+          setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, saw_night: true } }) : prev);
+        }
+
+        // ---- Render the exterior ----
+        renderer.clear();
+        renderer.ctx.save();
+        camera.apply(renderer.ctx);
+        renderer.drawWorld(LOCATIONS, camera, { gates: world.gates, daylight: world.daylight });
+        WORLD_OBJECTS.forEach(obj => renderer.drawEntity(obj, camera, undefined, dt));
+        for (const npc of world.visibleNpcs()) {
+          const isBoss = npc.id === 'arrow_ghost';
+          renderer.drawEntity(npc, camera, isBoss && fighting ? { hp: combat?.hp ?? 60, maxHp: combat?.maxHp ?? 60 } : undefined, dt);
+        }
+        renderer.drawEntity(player, camera, undefined, dt);
+        renderer.drawWorldLights(camera);
+        renderer.ctx.restore();
       }
 
       // Speedrun lap timing.
@@ -396,29 +558,47 @@ export default function App() {
         setSpeedrun(prev => (prev.active ? { ...prev, elapsed } : prev));
       }
 
-      // Render.
-      renderer.clear();
-      renderer.ctx.save();
-      camera.apply(renderer.ctx);
-      renderer.drawWorld(LOCATIONS, camera);
-      WORLD_OBJECTS.forEach(obj => renderer.drawEntity(obj, camera, undefined, dt));
-      NPCS.forEach(npc => {
-        const isBoss = npc.id === 'arrow_ghost';
-        renderer.drawEntity(
-          npc,
-          camera,
-          isBoss && fighting ? { hp: combat?.hp ?? 60, maxHp: combat?.maxHp ?? 60 } : undefined,
-          dt
-        );
-      });
-      renderer.drawEntity(player, camera, undefined, dt);
-      renderer.drawWorldLights(camera);
-      renderer.ctx.restore();
-
       drawMinimap(camera);
 
       animationFrameId = requestAnimationFrame(loop);
     };
+
+    function atRoomExit(room: Interior): boolean {
+      return Math.hypot(
+        player.pos.x + player.size.x / 2 - room.exit.x,
+        player.pos.y + player.size.y / 2 - room.exit.y
+      ) < 34;
+    }
+
+    function enterInterior(interiorId: string) {
+      const w = getWorld();
+      const room = w.interiorForBuilding(
+        w.doors.find(d => d.interiorId === interiorId)?.buildingId || ''
+      ) || w.interiors.get(interiorId);
+      if (!room) return;
+      activeInteriorRef.current = room;
+      setInsideName(room.name);
+      // Interior spawn in local coordinates; camera follows the player.
+      player.pos = { ...room.spawn };
+      player.clampToRoom(room.width, room.height);
+      camera.pos = { x: player.pos.x - camera.viewport.x / 2, y: player.pos.y - camera.viewport.y / 2 };
+      camera.target = { ...camera.pos };
+      getAudio().interact();
+      setInteractPrompt(null);
+      setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, entered_building: true } }) : prev);
+    }
+
+    function exitInterior() {
+      const room = activeInteriorRef.current;
+      activeInteriorRef.current = null;
+      setInsideName(null);
+      setInteractPrompt(null);
+      if (!room) return;
+      // Step the player just south of the building's door.
+      const door = getWorld().doors.find(d => d.interiorId === room.id);
+      if (door) player.pos = { x: door.x - player.size.x / 2, y: door.y + 8 };
+      getAudio().blip();
+    }
 
     /** Saves without disturbing React state. */
     function autosave(pos: Vector2) {
@@ -453,6 +633,12 @@ export default function App() {
 
     function applyInteract(obj: any) {
       getAudio().interact();
+
+      // Interactive fixtures (chest / sign / lever / campfire).
+      if (obj.interactiveKind) {
+        handleInteractive(obj);
+        return;
+      }
 
       if (obj.type === 'npc') {
         const npc = obj;
@@ -522,6 +708,62 @@ export default function App() {
 
         return { ...prev, flags, player };
       });
+    }
+
+    /** Chests, signs, levers and campfires. */
+    function handleInteractive(it: any) {
+      const kind = it.interactiveKind as string;
+      if (kind === 'sign') {
+        setCurrentDialogue({ id: 'sign_read', text: it.text || 'The writing has worn away.' });
+        setDialogueSpeaker(it.name);
+        return;
+      }
+      if (kind === 'campfire') {
+        setCurrentDialogue({ id: 'campfire', text: it.description || 'A warm fire.' });
+        setDialogueSpeaker(it.name);
+        setGameState(prev => {
+          if (!prev) return null;
+          const hp = prev.player.maxHp;
+          return { ...prev, player: { ...prev.player, hp }, flags: { ...prev.flags, rested_at_campfire: true } };
+        });
+        addToast('Rested', 'Your health is fully restored.');
+        getAudio().pickup();
+        return;
+      }
+      if (kind === 'chest') {
+        if (it.used) {
+          setCurrentDialogue({ id: 'chest_empty', text: 'The chest is empty.' });
+          setDialogueSpeaker(it.name);
+          return;
+        }
+        it.used = true;
+        setGameState(prev => {
+          if (!prev) return null;
+          const player = { ...prev.player, inventory: [...prev.player.inventory] };
+          const flags = { ...prev.flags, opened_chest: true };
+          if (it.itemId && !player.inventory.includes(it.itemId)) player.inventory.push(it.itemId);
+          if (it.gold) player.gold = (player.gold || 0) + it.gold;
+          return { ...prev, player, flags };
+        });
+        const parts: string[] = [];
+        if (it.itemId && ITEMS[it.itemId]) parts.push(ITEMS[it.itemId].name);
+        if (it.gold) parts.push(`${it.gold} gold`);
+        addToast('Chest opened', parts.length ? `Found: ${parts.join(', ')}` : 'It was empty.');
+        getAudio().pickup();
+        return;
+      }
+      if (kind === 'lever') {
+        it.used = true;
+        if (it.gateId) {
+          getWorld().openGateByFlag(it.gateId);
+          setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, [it.gateId]: true } }) : prev);
+        }
+        setCurrentDialogue({ id: 'lever', text: it.description || 'You pull the lever.' });
+        setDialogueSpeaker(it.name);
+        addToast('Lever pulled', 'A gate rumbles open somewhere.');
+        getAudio().achievement();
+        return;
+      }
     }
 
     loop();
@@ -722,7 +964,7 @@ export default function App() {
     <div className={`game-shell mode-${mode}`}>
       <canvas ref={canvasRef} className="game-canvas" />
 
-      <div className="mini-map-label text-neon-cyan">{currentArea}</div>
+      <div className="mini-map-label text-neon-cyan">{insideName ? `${currentArea} · ${insideName}` : currentArea}</div>
       <canvas ref={minimapRef} className="minimap" width={180} height={130} />
 
       <div className="hud-stats">

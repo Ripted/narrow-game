@@ -125,6 +125,7 @@ function buildBuildings(): Building[] {
           color: spec.wall,
           roofColor: spec.roof,
           wallHeight: spec.wallHeight,
+          zone: loc.id,
         };
         if (!valid(cand, out)) continue;
         out.push(cand);

@@ -1,7 +1,10 @@
 import { Entity, Vector2 } from '../types';
+import { INTERACTIVES, drawInteractive, drawGate } from '../world/interactives';
 import { Camera } from './camera';
 import { EntitySpriteSystem } from './entitySprite';
-import { EnvironmentRenderer } from './environment';
+import { EnvironmentRenderer, EnvExtras } from './environment';
+import { Interior } from '../types';
+import { drawInterior } from '../world/interiorArt';
 
 export class Renderer {
   ctx: CanvasRenderingContext2D;
@@ -54,15 +57,42 @@ export class Renderer {
     this.sprites.draw(this.ctx, entity, { hp });
   }
 
-  /** Terrain, roads, scenery props, ambient lighting and zone labels. */
-  drawWorld(locations: unknown, camera: Camera) {
+  /** Terrain, roads, scenery props, fixtures, ambient lighting and zone labels. */
+  drawWorld(locations: unknown, camera: Camera, extras: EnvExtras = {}) {
     void locations;
     this.environment.draw(this.ctx, {
       x: camera.pos.x,
       y: camera.pos.y,
       w: camera.viewport.x,
       h: camera.viewport.y,
-    });
+    }, extras);
+  }
+
+  /**
+   * Draws an interior room. The caller translates the context so the room sits
+   * centred in the viewport; the room itself is in local coordinates.
+   */
+  drawInteriorScene(room: Interior, camera: Camera, timeOfDay: number) {
+    drawInterior(this.ctx, room, timeOfDay);
+    void camera;
+  }
+
+  /** Interact prompt bubble drawn in world space. */
+  drawPromptMarker(pos: Vector2, text: string, camera: Camera) {
+    const x = pos.x;
+    const y = pos.y - 58;
+    const ctx = this.ctx;
+    ctx.font = 'bold 13px Inter';
+    const w = ctx.measureText(text).width + 20;
+    ctx.fillStyle = 'rgba(10,12,16,0.85)';
+    ctx.fillRect(x - w / 2, y - 20, w, 26);
+    ctx.strokeStyle = '#ffaa00';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x - w / 2, y - 20, w, 26);
+    ctx.fillStyle = '#ffaa00';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, x, y - 2);
+    void camera;
   }
 
   /** Emissive prop details, drawn after characters so lights sit in front. */

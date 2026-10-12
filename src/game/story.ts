@@ -12,6 +12,11 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'speedrunner', name: 'Speedrunner', description: 'Finish a lap of the speedrun track.' },
   { id: 'ghost_buster', name: 'Ghost Buster', description: 'Defeat arrow_ghost in combat.' },
   { id: 'all_endings', name: 'Completionist', description: 'Reach any of the four endings.' },
+  { id: 'interior_designer', name: 'Interior Designer', description: 'Step inside a building.' },
+  { id: 'gatekeeper', name: 'Gatekeeper', description: 'Open the sealed gate in the Dead Zone.' },
+  { id: 'night_owl', name: 'Night Owl', description: 'Be awake when the world turns to night.' },
+  { id: 'well_rested', name: 'Well Rested', description: 'Rest at a campfire.' },
+  { id: 'treasure_hunter', name: 'Treasure Hunter', description: 'Open a chest.' },
 ];
 
 export const QUEST_DEFS: Record<string, Quest> = {
@@ -45,6 +50,46 @@ export const QUEST_DEFS: Record<string, Quest> = {
     description: 'Deliver the fragments in the Dev Room.',
     isCompleted: false,
   },
+  'Open the Sealed Gate': {
+    id: 'sealed_gate',
+    title: 'Open the Sealed Gate',
+    description: 'A sealed gate blocks the east side of the Dead Zone. Find the old lever.',
+    isCompleted: false,
+  },
+  'Warm Up at a Campfire': {
+    id: 'campfire_rest',
+    title: 'Warm Up at a Campfire',
+    description: 'Find a campfire and rest to restore your health.',
+    isCompleted: false,
+  },
+  'Step Inside a Building': {
+    id: 'explore_interior',
+    title: 'Step Inside a Building',
+    description: 'Walk into a building door to see inside. Try the taverns and towers.',
+    isCompleted: false,
+  },
+  'Track Down the Shrine Key': {
+    id: 'shrine_key',
+    title: 'Track Down the Shrine Key',
+    description: 'The shrine gate is sealed. The rusty key is buried somewhere in the Dead Zone.',
+    isCompleted: false,
+  },
+};
+
+/**
+ * Where each active quest points the player. Drawn on the minimap so objectives
+ * route you across the world rather than leaving you to wander.
+ */
+export const QUEST_MARKERS: Record<string, { x: number; y: number; label: string }> = {
+  'The Arrow_Ghost Mystery': { x: 2200, y: 300, label: 'Sam, Narrow List HQ' },
+  'Investigate Meme Archives': { x: 1200, y: 2000, label: 'Meme Archives' },
+  'Talk to Kiwi about Poland': { x: 400, y: 1200, label: 'Polish District' },
+  'Collect Update Fragments': { x: 3100, y: 900, label: 'Dev Room' },
+  'Bring Fragments to ESH': { x: 3100, y: 900, label: 'ESH, Dev Room' },
+  'Open the Sealed Gate': { x: 2600, y: 2250, label: 'Old Lever, Dead Zone' },
+  'Warm Up at a Campfire': { x: 480, y: 480, label: 'Campfire, Spawn' },
+  'Step Inside a Building': { x: 300, y: 300, label: 'Nearest building' },
+  'Track Down the Shrine Key': { x: 3250, y: 2150, label: 'Rusty Key, Dead Zone' },
 };
 
 export class StoryManager {
@@ -68,11 +113,21 @@ export class StoryManager {
     if (state.flags.talked_to_sam) add('Investigate Meme Archives');
     if (state.flags.read_kiwi_apology) add('Talk to Kiwi about Poland');
     if (state.flags.visited_dev_room) add('Collect Update Fragments');
+    if (state.flags.entered_building) add('Step Inside a Building');
+    if (state.flags.rested_at_campfire) add('Warm Up at a Campfire');
+    if (state.flags.visited_dead_zone) add('Open the Sealed Gate');
+    if (state.flags.visited_dev_room && !state.flags.found_admin_key) add('Track Down the Shrine Key');
 
     if (state.flags.fragments_collected === 3) {
       complete('Collect Update Fragments');
       add('Bring Fragments to ESH');
     }
+
+    // Once the player is inside a building, that objective is done.
+    if (state.flags.entered_building) complete('Step Inside a Building');
+    if (state.flags.rested_at_campfire) complete('Warm Up at a Campfire');
+    if (state.flags.gate_deadzone_open) complete('Open the Sealed Gate');
+    if (state.flags.found_admin_key) complete('Track Down the Shrine Key');
 
     if (state.flags.all_arcs_resolved) {
       complete('Bring Fragments to ESH');
@@ -131,6 +186,11 @@ export class StoryManager {
     unlock('speedrunner', state.flags.completed_speedrun === true);
     unlock('ghost_buster', state.flags.arrow_ghost_defeated === true);
     unlock('all_endings', state.flags.game_ended === true);
+    unlock('interior_designer', state.flags.entered_building === true);
+    unlock('gatekeeper', state.flags.gate_deadzone_open === true);
+    unlock('night_owl', state.flags.saw_night === true);
+    unlock('well_rested', state.flags.rested_at_campfire === true);
+    unlock('treasure_hunter', state.flags.opened_chest === true);
 
     return newly;
   }

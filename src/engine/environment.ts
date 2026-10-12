@@ -1,7 +1,8 @@
 import { LOCATIONS } from '../data/locations';
 import { PROPS, ROADS } from '../world/props';
 import { BUILDINGS } from '../world/buildings';
-import { Prop } from '../types';
+import { INTERACTIVES, drawInteractive, drawGate } from '../world/interactives';
+import { Prop, Gate, Interactive } from '../types';
 import { drawProp, propShadow, propEmissive } from '../world/propArt';
 import { drawBuilding, buildingEmissive } from '../world/buildingArt';
 import { hash01, shade, withAlpha, mix } from './color';
@@ -11,6 +12,12 @@ export interface EnvView {
   y: number;
   w: number;
   h: number;
+}
+
+/** Live world state the environment pass needs (gates swing open, etc.). */
+export interface EnvExtras {
+  gates?: Gate[];
+  daylight?: number;
 }
 
 /**
@@ -42,13 +49,13 @@ export class EnvironmentRenderer {
     return this.base;
   }
 
-  draw(ctx: CanvasRenderingContext2D, view: EnvView) {
+  draw(ctx: CanvasRenderingContext2D, view: EnvView, extras: EnvExtras = {}) {
     this.drawBase(ctx, view);
     this.drawZones(ctx, view);
     this.drawRoads(ctx, view);
     this.drawBounds(ctx, view);
-    this.drawProps(ctx, view);
-    this.drawLighting(ctx, view);
+    this.drawProps(ctx, view, extras);
+    this.drawLighting(ctx, view, extras);
   }
 
   /**
@@ -216,10 +223,10 @@ export class EnvironmentRenderer {
     }
   }
 
-  private drawProps(ctx: CanvasRenderingContext2D, view: EnvView) {
-    // Ground props and buildings are sorted together back-to-front so a building
-    // correctly occludes props standing behind it. Keyed by footprint bottom, so
-    // a building's tall facade still draws over the prop behind it.
+  private drawProps(ctx: CanvasRenderingContext2D, view: EnvView, extras: EnvExtras) {
+    // Ground props, buildings and fixtures are sorted together back-to-front so a
+    // building correctly occludes props standing behind it. Keyed by footprint
+    // bottom, so a building's tall facade still draws over the prop behind it.
     type Item = { key: number; x: number; draw: () => void };
     const items: Item[] = [];
 
@@ -237,6 +244,20 @@ export class EnvironmentRenderer {
       items.push({ key: b.pos.y + b.size.y, x: b.pos.x, draw: () => drawBuilding(ctx, b) });
     }
 
+    for (const it of INTERACTIVES) {
+      if (!this.visible(it.pos.x - 10, it.pos.y - it.size.y * 1.6, it.size.x + 20, it.size.y * 2.2, view)) continue;
+      items.push({
+        key: it.pos.y + it.size.y,
+        x: it.pos.x,
+        draw: () => drawInteractive(ctx, it, performance.now() / 1000),
+      });
+    }
+
+    for (const g of extras.gates || []) {
+      if (!this.visible(g.pos.x - 10, g.pos.y - 10, g.size.x + 20, g.size.y + 20, view)) continue;
+      items.push({ key: g.pos.y + g.size.y, x: g.pos.x, draw: () => drawGate(ctx, g) });
+    }
+
     items.sort((a, b) => a.key - b.key || a.x - b.x);
     for (const it of items) it.draw();
   }
@@ -245,15 +266,34 @@ export class EnvironmentRenderer {
    * Ambient-darkness pass with soft pools of light around glow sources, applied
    * with multiply blending so the uplights genuinely brighten the ground.
    */
-  private drawLighting(ctx: CanvasRenderingContext2D, view: EnvView) {
+  private drawLighting(ctx: CanvasRenderingContext2D, view: EnvView, extras: EnvExtras) {
+    // Ambient darkness scales with the clock: bright at noon, deep at night.
+    const daylight = extras.daylight ?? 1;
+    const ambient = 0.18 + daylight * 0.72; // 0.18 (night) .. 0.9 (day)
+    const a = Math.round(200 * ambient + 40);
+
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle = 'rgba(174,172,182,1)';
+    ctx.fillStyle = `rgba(${a},${a},${Math.min(255, a + 8)},1)`;
     ctx.fillRect(view.x, view.y, view.w, view.h);
     ctx.restore();
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
+    // Fixtures glow more at night.
+    const glowBoost = 1 + (1 - daylight) * 1.6;
+    for (const it of INTERACTIVES) {
+      const cx = it.pos.x + it.size.x / 2;
+      const baseY = it.pos.y + it.size.y;
+      if (!this.visible(cx - 130, baseY - 140, 260, 240, view)) continue;
+      const warm = it.interactiveKind === 'campfire' || it.interactiveKind === 'lever';
+      const rad = warm ? 150 : 100;
+      const g = ctx.createRadialGradient(cx, baseY - 12, 0, cx, baseY - 12, rad);
+      g.addColorStop(0, withAlpha(it.color, (warm ? 0.3 : 0.14) * glowBoost));
+      g.addColorStop(1, withAlpha(it.color, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - rad, baseY - 12 - rad, rad * 2, rad * 2);
+    }
     for (const p of PROPS) {
       const cx = p.pos.x + p.size.x / 2;
       const baseY = p.pos.y + p.size.y;
@@ -261,7 +301,7 @@ export class EnvironmentRenderer {
       const warm = p.propKind === 'lamp' || p.propKind === 'clock' || p.propKind === 'neon';
       const rad = warm ? 130 : 90;
       const g = ctx.createRadialGradient(cx, baseY - 10, 0, cx, baseY - 10, rad);
-      g.addColorStop(0, withAlpha(p.color, warm ? 0.16 : 0.08));
+      g.addColorStop(0, withAlpha(p.color, (warm ? 0.16 : 0.08) * glowBoost));
       g.addColorStop(1, withAlpha(p.color, 0));
       ctx.fillStyle = g;
       ctx.fillRect(cx - rad, baseY - 10 - rad, rad * 2, rad * 2);
