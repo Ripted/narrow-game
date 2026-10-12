@@ -12,7 +12,7 @@ import { BUILDINGS } from './world/buildings';
 import { LOCATIONS, LOCATION_MINIMAP_COLORS } from './data/locations';
 import { DIALOGUE } from './data/characters';
 import { ITEMS, STARTING_ITEM } from './data/items';
-import { NPC as NpcType, DialogueNode, GameState, Vector2, Achievement, Interior } from './types';
+import { NPC as NpcType, DialogueNode, GameState, Vector2, Achievement, Interior, ShopEntry, Enemy, Car } from './types';
 import { StoryManager, QUEST_MARKERS } from './game/story';
 import { StateManager, SLOT_COUNT } from './game/state';
 import { WorldRuntime } from './game/world';
@@ -92,6 +92,7 @@ export default function App() {
   const [currentArea, setCurrentArea] = useState<string>('Newcomer Spawn');
   const [showQuestLog, setShowQuestLog] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
+  const [shop, setShop] = useState<{ id: string; name: string; stock: ShopEntry[] } | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [ending, setEnding] = useState<Ending | null>(null);
   const [customName, setCustomName] = useState('');
@@ -132,6 +133,15 @@ export default function App() {
   const activeInteriorRef = useRef<Interior | null>(null);
   const [insideName, setInsideName] = useState<string | null>(null);
 
+  // Drivable-car state and transient tire effects.
+  const activeCarRef = useRef<Car | null>(null);
+  const carVelRef = useRef(0);
+  const skidRef = useRef<{ x: number; y: number; a: number; life: number }[]>([]);
+  const dustRef = useRef<{ x: number; y: number; vx: number; vy: number; life: number }[]>([]);
+  const shakeRef = useRef(0);
+  const enemyHitRef = useRef(0);
+  const [drivingName, setDrivingName] = useState<string | null>(null);
+
   const addToast = useCallback((title: string, description: string) => {
     const id = ++toastIdRef.current;
     setToasts(prev => [...prev, { id, title, description }]);
@@ -151,6 +161,9 @@ export default function App() {
     engineRef.current = null;
     worldRef.current = new WorldRuntime();
     activeInteriorRef.current = null;
+    activeCarRef.current = null;
+    carVelRef.current = 0;
+    setDrivingName(null);
     setInsideName(null);
     lastZoneRef.current = '';
     setEquippedItemId(STARTING_ITEM);
@@ -162,9 +175,14 @@ export default function App() {
     engineRef.current = null;
     worldRef.current = new WorldRuntime();
     activeInteriorRef.current = null;
+    activeCarRef.current = null;
+    carVelRef.current = 0;
+    setDrivingName(null);
     setInsideName(null);
     lastZoneRef.current = '';
-    setGameState(normalizeState(saved));
+    const normalized = normalizeState(saved);
+    worldRef.current.restore(normalized.worldSave);
+    setGameState(normalized);
     getAudio().blip();
   };
 
@@ -318,8 +336,19 @@ export default function App() {
         ctx.fillStyle = it.interactiveKind === 'campfire' ? '#ff8a3a'
           : it.interactiveKind === 'lever' ? '#c9b06a'
           : it.interactiveKind === 'chest' ? '#ffd070'
+          : it.interactiveKind === 'merchant' ? '#7ac0d0'
           : 'rgba(200,200,200,0.6)';
         ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
+      });
+      // Traffic runs (live car positions).
+      (worldRef.current?.cars || []).forEach(c => {
+        ctx.fillStyle = c.routeId ? 'rgba(240,240,240,0.7)' : 'rgba(180,170,150,0.5)';
+        ctx.fillRect((c.pos.x + c.size.x / 2) * sx - 1.5, (c.pos.y + c.size.y / 2) * sy - 1.5, 3, c.routeId ? 2 : 3);
+      });
+      // Hostiles, drawn as red pips.
+      (worldRef.current?.enemies || []).forEach(e => {
+        ctx.fillStyle = '#ff4030';
+        ctx.fillRect((e.pos.x + e.size.x / 2) * sx - 1.5, (e.pos.y + e.size.y / 2) * sy - 1.5, 3, 3);
       });
       // Gates.
       (worldRef.current?.gates || []).forEach(g => {
@@ -351,6 +380,32 @@ export default function App() {
       ctx.beginPath();
       ctx.arc(player.pos.x * sx, player.pos.y * sy, 3.5, 0, Math.PI * 2);
       ctx.fill();
+
+      // Waypoint arrow toward the nearest active quest.
+      let bestMk: any = null;
+      let bestD = Infinity;
+      gameState.activeQuests.forEach(title => {
+        const mk = QUEST_MARKERS[title];
+        if (!mk) return;
+        const d = Math.hypot(mk.x - player.pos.x, mk.y - player.pos.y);
+        if (d < bestD) { bestD = d; bestMk = mk; }
+      });
+      if (bestMk) {
+        const px = player.pos.x * sx;
+        const py = player.pos.y * sy;
+        const ang = Math.atan2(bestMk.y * sy - py, bestMk.x * sx - px);
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(ang);
+        ctx.fillStyle = 'rgba(255,170,0,0.95)';
+        ctx.beginPath();
+        ctx.moveTo(11, 0);
+        ctx.lineTo(3, -5);
+        ctx.lineTo(3, 5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
       void cam;
     };
 
@@ -362,11 +417,28 @@ export default function App() {
       const dt = now - lastFrame;
       lastFrame = now;
       const world = getWorld();
-      world.update(Math.min(dt, 100) / 1000);
+      world.setViewport(renderer.canvas.width, renderer.canvas.height);
+      const dtSec = Math.min(dt, 100) / 1000;
+      const exteriorNow = !activeInteriorRef.current;
+      world.update(dtSec, exteriorNow ? { x: player.pos.x + player.size.x / 2, y: player.pos.y + player.size.y / 2 } : undefined);
+      const driving = !!activeCarRef.current;
+      const shake = shakeRef.current;
+      if (shake > 0) shakeRef.current = Math.max(0, shake - dt * 0.004);
 
-      const paused = isPaused || !!ending;
+      // Hostile contact damage (ignored mid-dodge, which is the counterplay).
+      if (world.pendingDamage > 0 && exteriorNow && !player.dodging) {
+        const dmg = world.pendingDamage;
+        getAudio().hurt();
+        setGameState(prev => {
+          if (!prev) return null;
+          const hp = Math.max(0, prev.player.hp - dmg);
+          if (hp <= 0) return { ...prev, player: { ...prev.player, hp: 0 }, flags: { ...prev.flags, game_ended: true } };
+          return { ...prev, player: { ...prev.player, hp } };
+        });
+      }
       const inDialogue = !!dialogueRef.current;
       const interior = activeInteriorRef.current;
+      const paused = isPaused || !!ending || !!shop;
 
       const fighting = gameState.flags.arrow_ghost_fight_started === true &&
         gameState.flags.arrow_ghost_defeated !== true;
@@ -424,13 +496,92 @@ export default function App() {
         }
         renderer.drawEntity(player, camera, undefined, dt);
         renderer.ctx.restore();
+      } else if (driving) {
+        // ---- Driving a commandeered car -----------------------------------
+        const car = activeCarRef.current!;
+        const movement = (!inDialogue && !paused) ? input.getMovement() : { x: 0, y: 0 };
+        if (!inDialogue && !paused) {
+          if (dt > 0) playtimeRef.current += dt;
+
+          const throttle = movement.x;          // forward / reverse
+          const steer = movement.y;             // left / right
+          const speed = carVelRef.current;
+          carVelRef.current += throttle * 240 * dtSec - speed * 1.4 * dtSec;
+          carVelRef.current = Math.max(-120, Math.min(240, carVelRef.current));
+          // A slow idle stop when nobody is pressing anything.
+          if (throttle === 0) carVelRef.current *= (1 - Math.min(1, dtSec * 1.6));
+          car.angle += steer * (carVelRef.current / 240) * 2.4 * dtSec * (carVelRef.current >= 0 ? 1 : -1);
+
+          const vx = Math.cos(car.angle) * carVelRef.current * dtSec;
+          const vy = Math.sin(car.angle) * carVelRef.current * dtSec;
+
+          // Buildings, live NPCs and closed gates stop the car hard.
+          const blockers = [...BUILDINGS, ...world.visibleNpcs(), ...world.exteriorSolids()];
+          let hit = false;
+          if (!CollisionSystem.checkCollision({ x: car.pos.x + vx, y: car.pos.y }, car.size, blockers)) car.pos.x += vx;
+          else hit = true;
+          if (!CollisionSystem.checkCollision({ x: car.pos.x, y: car.pos.y + vy }, car.size, blockers)) car.pos.y += vy;
+          else hit = true;
+          if (hit && Math.abs(carVelRef.current) > 40) {
+            shakeRef.current = Math.min(1, Math.abs(carVelRef.current) / 240);
+            carVelRef.current *= -0.25;
+            getAudio().hurt();
+          }
+          car.pos = {
+            x: Math.max(0, Math.min(MAP_WIDTH - car.size.x, car.pos.x)),
+            y: Math.max(0, Math.min(MAP_HEIGHT - car.size.y, car.pos.y)),
+          };
+
+          // Player rides along.
+          player.pos = { x: car.pos.x + car.size.x / 2 - player.size.x / 2, y: car.pos.y + car.size.y / 2 - player.size.y / 2 };
+
+          // Tire marks and dust while moving fast.
+          const fast = Math.abs(carVelRef.current) > 90;
+          if (steer !== 0 && fast) skidRef.current.push({ x: car.pos.x + car.size.x / 2, y: car.pos.y + car.size.y / 2, a: car.angle, life: 1.4 });
+          if (fast) dustRef.current.push({ x: car.pos.x + car.size.x / 2 - Math.cos(car.angle) * car.size.x / 2, y: car.pos.y + car.size.y / 2 - Math.sin(car.angle) * car.size.y / 2, vx: -Math.cos(car.angle) * 20 + (Math.random() - 0.5) * 20, vy: -Math.sin(car.angle) * 20 + (Math.random() - 0.5) * 20, life: 0.6 });
+          skidRef.current = skidRef.current.filter(s => (s.life -= dtSec) > 0);
+          dustRef.current = dustRef.current.filter(d => { d.x += d.vx * dtSec; d.y += d.vy * dtSec; return (d.life -= dtSec) > 0; });
+
+          // Ramming a hostile kills it.
+          const victim = world.enemyAt(car.pos, car.size, 46);
+          if (victim && Math.abs(carVelRef.current) > 120 && now - enemyHitRef.current > 350) {
+            enemyHitRef.current = now;
+            world.damageEnemy(victim.id, 999);
+            addToast('Roadkill', `You flattened a ${victim.enemyKind}.`);
+            getAudio().hit();
+          }
+
+          camera.update(player.pos);
+          if (input.consumePressed('e') || input.consumeAction() === 'interact' || input.consumePressed('escape')) exitCar();
+        }
+        // Recover from a destroyed car.
+        if (gameState.player.hp <= 0 && activeCarRef.current) exitCar();
+
+        setInteractPrompt(driving ? 'WASD to drive · E to exit' : null);
+
+        // ---- Render while driving ----
+        renderer.clear();
+        renderer.ctx.save();
+        camera.apply(renderer.ctx);
+        renderer.drawWorld(LOCATIONS, camera, { gates: world.gates, daylight: world.daylight });
+        drawSkids(renderer.ctx);
+        WORLD_OBJECTS.forEach(obj => renderer.drawEntity(obj, camera, undefined, dt));
+        for (const npc of world.visibleNpcs()) renderer.drawEntity(npc, camera, undefined, dt);
+        for (const c of world.cars) if (c !== car) renderer.drawCar(c, camera, now / 1000);
+        for (const e of world.enemies) renderer.drawEnemy(e, camera, now / 1000);
+        renderer.drawCar(car, camera, now / 1000);
+        renderer.drawEntity(player, camera, undefined, dt);
+        drawDust(renderer.ctx);
+        renderer.drawWorldLights(camera);
+        renderer.ctx.restore();
       } else {
         // ---- Walking the exterior world ------------------------------------
         if (!inDialogue && !paused) {
           if (dt > 0) playtimeRef.current += dt;
           const movement = input.getMovement();
-          const solids = [...WORLD_OBJECTS, ...world.visibleNpcs(), ...BUILDINGS, ...world.exteriorSolids()];
-          player.update(movement, solids);
+          const solids = [...WORLD_OBJECTS, ...world.visibleNpcs(), ...world.obstacleSolids()];
+          if (input.consumePressed('shift') && player.tryDodge(movement)) getAudio().step();
+          player.update(movement, solids, dtSec);
           player.clampToWorld();
           camera.update(player.pos);
           if (movement.x !== 0 || movement.y !== 0) {
@@ -441,8 +592,8 @@ export default function App() {
           if (input.consumePressed('escape')) setIsPaused(true);
         }
 
-        // Interactables: NPCs, world objects and fixtures.
-        const interactables: any[] = [...world.visibleNpcs(), ...WORLD_OBJECTS, ...INTERACTIVES];
+        // Interactables: NPCs, world objects, fixtures and hostiles.
+        const interactables: any[] = [...world.visibleNpcs(), ...WORLD_OBJECTS, ...INTERACTIVES, ...world.enemies];
         for (const obj of interactables) {
           const cx = obj.pos.x + (obj.size?.x ?? 0) / 2;
           const cy = obj.pos.y + (obj.size?.y ?? 0) / 2;
@@ -458,6 +609,8 @@ export default function App() {
 
         // Door prompt takes priority when standing on one.
         const door = world.doorAt(player.pos, player.size, 46);
+        // Parked car the player can commandeer.
+        const carNear = !nearest ? world.drivableCarAt(player.pos, player.size, 70) : null;
         const wantInteract = input.consumePressed('e') || input.consumeAction() === 'interact';
 
         if (nearest) {
@@ -466,15 +619,21 @@ export default function App() {
             : nearest.name;
           if (nearest.id === 'arrow_ghost' && fighting) {
             setInteractPrompt('Press E to ATTACK');
+          } else if (nearest.type === 'enemy') {
+            setInteractPrompt('Press E to attack');
           } else if (nearest.interactiveKind === 'chest') {
             setInteractPrompt(nearest.used ? 'Opened' : 'Press E to open chest');
           } else if (nearest.interactiveKind === 'campfire') {
             setInteractPrompt('Press E to rest');
           } else if (nearest.interactiveKind === 'lever') {
             setInteractPrompt(nearest.used ? 'Lever pulled' : 'Press E to pull lever');
+          } else if (nearest.interactiveKind === 'merchant') {
+            setInteractPrompt(`Press E to trade with ${label}`);
           } else {
             setInteractPrompt(`Press E to interact with ${label}`);
           }
+        } else if (carNear) {
+          setInteractPrompt('Press E to drive');
         } else if (door) {
           setInteractPrompt('Press E to enter');
         } else {
@@ -482,10 +641,22 @@ export default function App() {
         }
 
         if (wantInteract && !dialogueRef.current) {
-          if (fighting && nearest && nearest.id === 'arrow_ghost') {
+          if (nearest && nearest.type === 'enemy') {
+            const item = ITEMS[equippedItemId];
+            const dmg = item?.weapon ? (item.damage || 4) : 3;
+            getAudio().hit();
+            const slain = world.damageEnemy(nearest.id, dmg);
+            if (slain) {
+              addToast('Hostile down', `You defeated a ${nearest.enemyKind}.`);
+              getAudio().achievement();
+              setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, killed_hostile: true } }) : prev);
+            }
+          } else if (fighting && nearest && nearest.id === 'arrow_ghost') {
             strikeBoss();
           } else if (nearest) {
             applyInteract(nearest);
+          } else if (carNear) {
+            enterCar(carNear);
           } else if (door) {
             enterInterior(door.interiorId);
           }
@@ -540,16 +711,28 @@ export default function App() {
         // ---- Render the exterior ----
         renderer.clear();
         renderer.ctx.save();
+        // Screen shake on a hard car impact.
+        if (shakeRef.current > 0.01) {
+          const s = shakeRef.current * 9;
+          renderer.ctx.translate((Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
+        }
         camera.apply(renderer.ctx);
         renderer.drawWorld(LOCATIONS, camera, { gates: world.gates, daylight: world.daylight });
+        drawSkids(renderer.ctx);
         WORLD_OBJECTS.forEach(obj => renderer.drawEntity(obj, camera, undefined, dt));
         for (const npc of world.visibleNpcs()) {
           const isBoss = npc.id === 'arrow_ghost';
           renderer.drawEntity(npc, camera, isBoss && fighting ? { hp: combat?.hp ?? 60, maxHp: combat?.maxHp ?? 60 } : undefined, dt);
         }
+        for (const c of world.cars) renderer.drawCar(c, camera, now / 1000);
+        for (const e of world.enemies) renderer.drawEnemy(e, camera, now / 1000);
         renderer.drawEntity(player, camera, undefined, dt);
+        drawDust(renderer.ctx);
         renderer.drawWorldLights(camera);
         renderer.ctx.restore();
+
+        // Weather paints over the whole viewport in screen space.
+        world.weather.draw(renderer.ctx);
       }
 
       // Speedrun lap timing.
@@ -600,6 +783,60 @@ export default function App() {
       getAudio().blip();
     }
 
+    /** Enters the nearest parked car. */
+    function enterCar(car: Car) {
+      activeCarRef.current = car;
+      carVelRef.current = 0;
+      setDrivingName(car.name);
+      setInteractPrompt('WASD to drive · E to exit');
+      getAudio().interact();
+    }
+
+    /** Leaves the current car, stepping out to the south. */
+    function exitCar() {
+      const car = activeCarRef.current;
+      activeCarRef.current = null;
+      carVelRef.current = 0;
+      setDrivingName(null);
+      setInteractPrompt(null);
+      if (!car) return;
+      player.pos = {
+        x: Math.max(0, Math.min(MAP_WIDTH - player.size.x, car.pos.x + car.size.x / 2 - player.size.x / 2)),
+        y: Math.max(0, Math.min(MAP_HEIGHT - player.size.y, car.pos.y + car.size.y + 10)),
+      };
+      getAudio().blip();
+    }
+
+    /** Fading tire marks left by hard cornering. */
+    function drawSkids(ctx: CanvasRenderingContext2D) {
+      for (const s of skidRef.current) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, s.life / 1.4) * 0.5;
+        ctx.fillStyle = '#0a0a0a';
+        ctx.translate(s.x, s.y);
+        ctx.rotate(s.a);
+        ctx.fillRect(-carHalf().x, -carHalf().y * 0.4, carHalf().x * 2, carHalf().y * 0.8);
+        ctx.restore();
+      }
+    }
+
+    /** Dust kicked up behind a moving car. */
+    function drawDust(ctx: CanvasRenderingContext2D) {
+      for (const d of dustRef.current) {
+        ctx.globalAlpha = Math.max(0, d.life / 0.6) * 0.4;
+        ctx.fillStyle = '#c8c0a8';
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function carHalf(): Vector2 {
+      const car = activeCarRef.current;
+      return car ? { x: car.size.x / 2, y: car.size.y / 2 } : { x: 30, y: 16 };
+    }
+
     /** Saves without disturbing React state. */
     function autosave(pos: Vector2) {
       setGameState(prev => {
@@ -607,6 +844,7 @@ export default function App() {
         const snapshot: GameState = {
           ...prev,
           player: { ...prev.player, pos, playtime: playtimeRef.current },
+          worldSave: getWorld().save(),
         };
         StateManager.autosave(snapshot);
         return prev;
@@ -710,7 +948,7 @@ export default function App() {
       });
     }
 
-    /** Chests, signs, levers and campfires. */
+    /** Chests, signs, levers, campfires and merchants. */
     function handleInteractive(it: any) {
       const kind = it.interactiveKind as string;
       if (kind === 'sign') {
@@ -762,6 +1000,18 @@ export default function App() {
         setDialogueSpeaker(it.name);
         addToast('Lever pulled', 'A gate rumbles open somewhere.');
         getAudio().achievement();
+        return;
+      }
+      if (kind === 'merchant') {
+        if (!it.stock || it.stock.length === 0) {
+          setCurrentDialogue({ id: 'merchant_empty', text: 'Nothing in stock today.' });
+          setDialogueSpeaker(it.name);
+          return;
+        }
+        setCurrentDialogue(null);
+        setDialogueSpeaker(null);
+        setShop({ id: it.id, name: it.name, stock: it.stock });
+        getAudio().blip();
         return;
       }
     }
@@ -826,6 +1076,22 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [currentDialogue, gameState]);
 
+  // Close the shop on E / Escape.
+  useEffect(() => {
+    if (!shop) return;
+    const onKey = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (key === 'e' || key === 'escape' || key === 'enter') {
+        e.preventDefault();
+        engineRef.current?.input.consumePressed('e');
+        engineRef.current?.input.consumePressed('escape');
+        setShop(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [shop]);
+
   const useItem = (itemId: string) => {
     const item = ITEMS[itemId];
     if (!item) return;
@@ -833,7 +1099,49 @@ export default function App() {
       setEquippedItemId(itemId);
       addToast('Equipped', `${item.name} (+${item.damage} damage)`);
       getAudio().blip();
+      return;
     }
+    if (itemId === 'energy_drink') {
+      setGameState(prev => {
+        if (!prev) return prev;
+        const inventory = [...prev.player.inventory];
+        const idx = inventory.indexOf(itemId);
+        if (idx >= 0) inventory.splice(idx, 1);
+        return { ...prev, player: { ...prev.player, hp: prev.player.maxHp, inventory } };
+      });
+      addToast('Energy Drink', 'Health restored.');
+      getAudio().pickup();
+    }
+  };
+
+  // ---- Shop -----------------------------------------------------------------
+
+  const buyFromShop = (entry: ShopEntry) => {
+    if (!gameState) return;
+    const item = ITEMS[entry.itemId];
+    if (!item) return;
+    if ((gameState.player.gold || 0) < entry.price) {
+      addToast('Not enough gold', `${item.name} costs ${entry.price} gold.`);
+      getAudio().hurt();
+      return;
+    }
+    if (item.id === 'energy_drink' && gameState.player.inventory.filter(i => i === 'energy_drink').length >= 5) {
+      addToast('Stocked up', 'You are carrying enough drinks already.');
+      return;
+    }
+    setGameState(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        player: {
+          ...prev.player,
+          gold: Math.max(0, (prev.player.gold || 0) - entry.price),
+          inventory: [...prev.player.inventory, entry.itemId],
+        },
+      };
+    });
+    addToast('Purchased', `Bought ${item.name} for ${entry.price} gold.`);
+    getAudio().pickup();
   };
 
   const manualSave = (slot: number) => {
@@ -964,7 +1272,11 @@ export default function App() {
     <div className={`game-shell mode-${mode}`}>
       <canvas ref={canvasRef} className="game-canvas" />
 
-      <div className="mini-map-label text-neon-cyan">{insideName ? `${currentArea} · ${insideName}` : currentArea}</div>
+      <div className="mini-map-label text-neon-cyan">
+        {insideName ? `${currentArea} · ${insideName}` : currentArea}
+        {drivingName ? ` · driving ${drivingName}` : ''}
+        {!insideName && worldRef.current ? ` · ${worldRef.current.night ? 'Night' : 'Day'}${worldRef.current.weather.weather !== 'clear' ? ` · ${worldRef.current.weather.weather}` : ''}` : ''}
+      </div>
       <canvas ref={minimapRef} className="minimap" width={180} height={130} />
 
       <div className="hud-stats">
@@ -1105,6 +1417,31 @@ export default function App() {
               );
             })}
           </ul>
+        </div>
+      )}
+
+      {shop && (
+        <div className="shop-panel">
+          <h3 className="text-neon-cyan font-bold mb-1">{shop.name}</h3>
+          <div className="text-xs text-gray-400 mb-2">Gold: <span className="text-neon-orange font-bold">{gameState?.player.gold || 0}</span></div>
+          <ul className="text-sm">
+            {shop.stock.map((entry, i) => {
+              const item = ITEMS[entry.itemId];
+              if (!item) return null;
+              const afford = (gameState?.player.gold || 0) >= entry.price;
+              return (
+                <li key={i} className="inventory-item" onClick={() => buyFromShop(entry)} style={{ opacity: afford ? 1 : 0.5 }}>
+                  <span className="inv-dot" style={{ background: item.color }} />
+                  <div style={{ flex: 1 }}>
+                    <div className="text-white">{item.name}</div>
+                    <div className="text-gray-500 text-xs">{item.description}</div>
+                  </div>
+                  <span className={afford ? 'text-neon-orange' : 'text-gray-600'}>{entry.price}g</span>
+                </li>
+              );
+            })}
+          </ul>
+          <button className="shop-close" onClick={() => setShop(null)}>Leave (E)</button>
         </div>
       )}
 

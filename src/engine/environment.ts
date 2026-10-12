@@ -1,4 +1,5 @@
 import { LOCATIONS } from '../data/locations';
+import { MAP_WIDTH, MAP_HEIGHT } from './collision';
 import { PROPS, ROADS } from '../world/props';
 import { BUILDINGS } from '../world/buildings';
 import { INTERACTIVES, drawInteractive, drawGate } from '../world/interactives';
@@ -64,8 +65,8 @@ export class EnvironmentRenderer {
    * hard invisible wall.
    */
   private drawBounds(ctx: CanvasRenderingContext2D, view: EnvView) {
-    const W = 3400;
-    const H = 2400;
+    const W = MAP_WIDTH;
+    const H = MAP_HEIGHT;
     ctx.fillStyle = '#050507';
     // Outside strips, clipped to the viewport.
     const strips: [number, number, number, number][] = [

@@ -31,7 +31,7 @@ export interface Entity {
   pos: Vector2;
   size: Vector2;
   color: Color;
-  type: 'player' | 'npc' | 'object' | 'prop' | 'building';
+  type: 'player' | 'npc' | 'object' | 'prop' | 'building' | 'car' | 'enemy';
   appearance?: Appearance;
   /** Selects the decorative vector art used for object/prop entities. */
   propKind?: PropKind;
@@ -144,7 +144,7 @@ export interface Schedule {
   speed: number;
 }
 
-export type InteractiveKind = 'chest' | 'sign' | 'lever' | 'campfire';
+export type InteractiveKind = 'chest' | 'sign' | 'lever' | 'campfire' | 'merchant';
 
 /**
  * A hand-placed interactive fixture. Unlike props these can be used: chests
@@ -164,6 +164,16 @@ export interface Interactive extends Entity {
   description?: string;
   /** Whether the fixture has already been used (chest opened, lever pulled). */
   used?: boolean;
+  /** Stock sold by a merchant fixture, in item-id order. */
+  stock?: ShopEntry[];
+}
+
+/** One line of a merchant's stock. */
+export interface ShopEntry {
+  itemId: string;
+  price: number;
+  /** Max times it can be bought; undefined means unlimited. */
+  limit?: number;
 }
 
 /**
@@ -216,6 +226,61 @@ export interface QuestMarker {
   label: string;
 }
 
+export type CarKind = 'sedan' | 'hatch' | 'van' | 'taxi' | 'truck';
+
+/** A vehicle. Parked cars are solid scenery; ambient cars follow a route. */
+export interface Car extends Entity {
+  type: 'car';
+  carKind: CarKind;
+  /** Angle in radians, 0 = facing right (+x). */
+  angle: number;
+  /** Current speed in px/s when moving. */
+  speed: number;
+  /** Named traffic route this car loops along, if any. */
+  routeId?: string;
+  /** Progress along the route, in px. */
+  routeDist?: number;
+}
+
+/** A named traffic circuit; the runtime wraps cars around it. */
+export interface TrafficRoute {
+  id: string;
+  /** Waypoints in world coordinates; the last connects back to the first. */
+  points: Vector2[];
+  speed: number;
+  /** How many cars run this route. */
+  count: number;
+  interval: number;
+}
+
+export type EnemyKind = 'stalker' | 'brute' | 'drone';
+
+/** A hostile wanderer that chases and hits the player on contact. */
+export interface Enemy extends Entity {
+  type: 'enemy';
+  enemyKind: EnemyKind;
+  hp: number;
+  maxHp: number;
+  damage: number;
+  speed: number;
+  /** Home point the enemy leashes back to when the player escapes. */
+  home: Vector2;
+  /** Seconds until it can hit again. */
+  cooldown?: number;
+}
+
+export type WeatherKind = 'clear' | 'rain' | 'snow';
+
+export interface WorldSave {
+  clock: number;
+  npcPos: Record<string, Vector2>;
+  openedChestIds: string[];
+  usedLeverIds: string[];
+  openGateFlags: string[];
+  killedEnemyIds: string[];
+  weather: WeatherKind;
+}
+
 export interface WorldObject extends Entity {
   interactable: boolean;
   description?: string;
@@ -263,6 +328,8 @@ export interface GameState {
   completedQuests: string[];
   unlockedAchievements: string[];
   currentLocation: string;
+  /** Snapshot of the mutable living-world state (clock, NPCs, chests, gates). */
+  worldSave?: WorldSave;
 }
 
 export interface InventoryItem {

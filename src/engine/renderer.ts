@@ -1,10 +1,12 @@
-import { Entity, Vector2 } from '../types';
+import { Entity, Vector2, Car, Enemy } from '../types';
 import { INTERACTIVES, drawInteractive, drawGate } from '../world/interactives';
 import { Camera } from './camera';
 import { EntitySpriteSystem } from './entitySprite';
 import { EnvironmentRenderer, EnvExtras } from './environment';
 import { Interior } from '../types';
 import { drawInterior } from '../world/interiorArt';
+import { drawCar } from '../world/cars';
+import { drawEnemy } from '../world/enemies';
 
 export class Renderer {
   ctx: CanvasRenderingContext2D;
@@ -103,6 +105,32 @@ export class Renderer {
       w: camera.viewport.x,
       h: camera.viewport.y,
     });
+  }
+
+  /** Draws a car (parked or in traffic) rotated to its heading. */
+  drawCar(car: Car, camera: Camera, time: number) {
+    const { pos, size } = car;
+    const pad = 80;
+    if (
+      pos.x + size.x < camera.pos.x - pad ||
+      pos.x > camera.pos.x + camera.viewport.x + pad ||
+      pos.y + size.y < camera.pos.y - pad ||
+      pos.y > camera.pos.y + camera.viewport.y + pad
+    ) return;
+    drawCar(this.ctx, car, time);
+  }
+
+  /** Draws a hostile. */
+  drawEnemy(enemy: Enemy, camera: Camera, time: number) {
+    const { pos, size } = enemy;
+    const pad = 90;
+    if (
+      pos.x + size.x < camera.pos.x - pad ||
+      pos.x > camera.pos.x + camera.viewport.x + pad ||
+      pos.y + size.y * 2 < camera.pos.y - pad ||
+      pos.y > camera.pos.y + camera.viewport.y + pad
+    ) return;
+    drawEnemy(this.ctx, enemy, time);
   }
 
   /**

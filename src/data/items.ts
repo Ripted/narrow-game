@@ -29,6 +29,28 @@ export const ITEMS: Record<string, InventoryItem> = {
     description: 'Opens something in the Dev Room. Probably. Definitely maybe.',
     color: '#c0c0c0',
   },
+  energy_drink: {
+    id: 'energy_drink',
+    name: 'Energy Drink',
+    description: 'Tastes like a sprint. Restores health on use.',
+    color: '#39d0d8',
+  },
+  wrench: {
+    id: 'wrench',
+    name: 'Heavy Wrench',
+    description: 'A garage wrench. Good for cars, better for arguments.',
+    color: '#9aa4ad',
+    weapon: true,
+    damage: 9,
+  },
+  pepper_spray: {
+    id: 'pepper_spray',
+    name: 'Pepper Spray',
+    description: 'A docker\'s deterrent. Short range, high regret.',
+    color: '#e05a2a',
+    weapon: true,
+    damage: 6,
+  },
 };
 
 export const STARTING_ITEM = 'rusty_stick';

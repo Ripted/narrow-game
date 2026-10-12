@@ -1,9 +1,9 @@
 import { Vector2 } from '../types';
-import { LOCATIONS } from '../data/locations';
+import { LOCATIONS, MAP_BOUNDS } from '../data/locations';
 import { NPCS } from '../data/npcs';
 
-export const MAP_WIDTH = 3400;
-export const MAP_HEIGHT = 2400;
+export const MAP_WIDTH = MAP_BOUNDS.width;
+export const MAP_HEIGHT = MAP_BOUNDS.height;
 
 export class CollisionSystem {
   static checkCollision(

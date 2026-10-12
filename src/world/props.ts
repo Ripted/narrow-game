@@ -83,6 +83,30 @@ const THEMES: Record<string, ZoneTheme> = {
     colors: { bush: '#4a4a3a', rock: '#4a4a4a', skull: '#c8c4b8', fence: '#4a3f34', column: '#5a5a5a', crate: '#4a4a4a' },
     count: 22,
   },
+  the_wilds: {
+    accent: '#3a5a30',
+    kinds: ['pine', 'tree', 'bush', 'grass', 'rock', 'flower', 'pine', 'tree', 'bush'],
+    colors: { pine: '#2f5a30', tree: '#3a6a38', bush: '#4a6a3a', grass: '#5a7a44', rock: '#5a5a52', flower: '#e0c04a' },
+    count: 46,
+  },
+  the_highway: {
+    accent: '#6a6a70',
+    kinds: ['lamp', 'fence', 'rock', 'fence', 'lamp'],
+    colors: { lamp: '#ffd070', fence: '#5a5a60', rock: '#55555a' },
+    count: 18,
+  },
+  server_farm: {
+    accent: '#39d0d8',
+    kinds: ['server', 'server', 'terminal', 'console', 'monitor', 'neon', 'server'],
+    colors: { server: '#1e2a34', terminal: '#39d0d8', console: '#2ad0e0', monitor: '#4a90d0', neon: '#39d0d8' },
+    count: 30,
+  },
+  docks: {
+    accent: '#5a7a8a',
+    kinds: ['crate', 'barrel', 'crate', 'fence', 'rock', 'crate', 'barrel'],
+    colors: { crate: '#4a5a64', barrel: '#6a4a3a', fence: '#4a5560', rock: '#4a4a4a' },
+    count: 28,
+  },
 };
 
 /** Nominal footprint per prop kind; a little jitter is added at build time. */

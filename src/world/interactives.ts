@@ -64,6 +64,36 @@ export const INTERACTIVES: Interactive[] = [
     pos: { x: 2720, y: 1700 }, size: { x: 44, y: 34 }, color: '#ff8a3a',
     description: 'A rest point for tired speedrunners.',
   },
+
+  // ---- Merchants: gold sinks ------------------------------------------------
+  {
+    id: 'merchant_cafe', name: 'Café Vendor', type: 'object', interactiveKind: 'merchant',
+    pos: { x: 2900, y: 300 }, size: { x: 34, y: 40 }, color: '#c9a0c0',
+    description: 'A vendor with a stall of café goods.',
+    stock: [
+      { itemId: 'baguette', price: 20 },
+      { itemId: 'energy_drink', price: 15 },
+    ],
+  },
+  {
+    id: 'merchant_docks', name: 'Dock Trader', type: 'object', interactiveKind: 'merchant',
+    pos: { x: 4200, y: 2300 }, size: { x: 34, y: 40 }, color: '#5a7a8a',
+    description: 'A trader dealing in dock-surplus gear.',
+    stock: [
+      { itemId: 'wrench', price: 35 },
+      { itemId: 'pepper_spray', price: 18 },
+      { itemId: 'energy_drink', price: 15 },
+    ],
+  },
+  {
+    id: 'merchant_wilds', name: 'Roadside Merchant', type: 'object', interactiveKind: 'merchant',
+    pos: { x: 3820, y: 2500 }, size: { x: 34, y: 40 }, color: '#8a7a5a',
+    description: 'A merchant camped by the dirt road.',
+    stock: [
+      { itemId: 'energy_drink', price: 12 },
+      { itemId: 'pepper_spray', price: 20 },
+    ],
+  },
 ];
 
 /**
@@ -170,6 +200,35 @@ export function drawInteractive(
         ctx.closePath();
         ctx.fill();
       }
+      break;
+    }
+    case 'merchant': {
+      // A market stall: counter, striped awning and a hanging lantern.
+      ctx.fillStyle = shade(it.color, -0.35);
+      ctx.fillRect(it.pos.x - w * 0.5, baseY - h * 0.5, w * 2, h * 0.5);
+      ctx.fillStyle = shade(it.color, 0.1);
+      ctx.fillRect(it.pos.x - w * 0.5, baseY - h * 0.6, w * 2, h * 0.16);
+      // Awning stripes.
+      const aw = w * 2;
+      for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = i % 2 ? '#e8e0d0' : it.color;
+        ctx.fillRect(it.pos.x - w * 0.5 + (aw / 5) * i, baseY - h - 6, aw / 5, 12);
+      }
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(it.pos.x - w * 0.5, baseY - h - 6, aw, 12);
+      // Lantern glow.
+      const pulse = 0.6 + 0.4 * Math.sin(time * 3);
+      ctx.fillStyle = withAlpha('#ffd070', 0.55 * pulse);
+      ctx.beginPath();
+      ctx.arc(cx + w * 0.5, baseY - h * 0.7, 10, 0, Math.PI * 2);
+      ctx.fill();
+      // Gold coin motif on the counter.
+      ctx.fillStyle = '#ffd070';
+      ctx.beginPath();
+      ctx.arc(cx - w * 0.2, baseY - h * 0.32, 4, 0, Math.PI * 2);
+      ctx.arc(cx + w * 0.2, baseY - h * 0.32, 4, 0, Math.PI * 2);
+      ctx.fill();
       break;
     }
   }

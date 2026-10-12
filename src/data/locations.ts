@@ -1,4 +1,4 @@
-export const MAP_BOUNDS = { width: 3400, height: 2400 };
+export const MAP_BOUNDS = { width: 5600, height: 4000 };
 
 export const LOCATIONS = {
   NEWCOMER_SPAWN: {
@@ -70,7 +70,35 @@ export const LOCATIONS = {
     description: 'An abandoned area on the edge of the map. Empty buildings.',
     color: '#111111',
     bounds: { x: 1800, y: 1800, width: 1000, height: 600 }
-  }
+  },
+  THE_WILDS: {
+    id: 'the_wilds',
+    name: 'The Wilds',
+    description: 'Overgrown outskirts past the city. Trees, ruins and winding dirt roads.',
+    color: '#22301f',
+    bounds: { x: 0, y: 2400, width: 5600, height: 700 }
+  },
+  THE_HIGHWAY: {
+    id: 'the_highway',
+    name: 'The Highway',
+    description: 'A wide ring road on the city edge. Traffic runs both ways. Mind the cars.',
+    color: '#2a2a2e',
+    bounds: { x: 0, y: 3100, width: 5600, height: 320 }
+  },
+  SERVER_FARM: {
+    id: 'server_farm',
+    name: 'The Server Farm',
+    description: 'A cold data centre. Rows of humming racks and blinking status lights.',
+    color: '#16222c',
+    bounds: { x: 3400, y: 0, width: 2200, height: 2000 }
+  },
+  DOCKS: {
+    id: 'docks',
+    name: 'The Docks',
+    description: 'The southern waterfront. Cranes, containers and a salt-eaten pier.',
+    color: '#1d2b33',
+    bounds: { x: 3400, y: 2000, width: 2200, height: 2000 }
+  },
 };
 
 /** Colour used on the minimap for each location. */
@@ -85,4 +113,8 @@ export const LOCATION_MINIMAP_COLORS: Record<string, string> = {
   dev_room: '#1a1a1a',
   meme_archives: '#2a5a2a',
   dead_zone: '#222222',
+  the_wilds: '#2f4a2a',
+  the_highway: '#4a4a52',
+  server_farm: '#2a4a5a',
+  docks: '#3a5a6a',
 };

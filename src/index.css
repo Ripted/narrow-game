@@ -338,8 +338,41 @@ body {
 
 /* Panels that scroll internally never leak scroll to the page. */
 .quest-log,
-.inventory-panel {
+.inventory-panel,
+.shop-panel {
   overscroll-behavior: contain;
+}
+
+/* ---- Shop ---- */
+.shop-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(13, 13, 13, 0.95);
+  border: 1px solid var(--color-neon-cyan);
+  box-shadow: 0 0 24px rgba(0, 255, 255, 0.25);
+  padding: 18px;
+  width: 360px;
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 80;
+}
+
+.shop-close {
+  margin-top: 10px;
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--color-neon-orange);
+  color: var(--color-neon-orange);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.shop-close:hover {
+  background: rgba(255, 170, 0, 0.12);
 }
 
 /* =====================================================================

@@ -54,6 +54,23 @@ const ZONE_BUILDINGS: Record<string, Spec[]> = {
     { kind: 'ruin', wallHeight: 44, wall: '#5a554c', roof: '#3a352c', count: 2 },
     { kind: 'bunker', wallHeight: 26, wall: '#4a4a4a', roof: '#3a3a3a', count: 1 },
   ],
+  the_wilds: [
+    { kind: 'ruin', wallHeight: 38, wall: '#4e4a3c', roof: '#33301f', count: 4 },
+    { kind: 'hut', wallHeight: 30, wall: '#5a4a30', roof: '#3f3420', count: 2 },
+  ],
+  the_highway: [
+    { kind: 'warehouse', wallHeight: 40, wall: '#4a4a52', roof: '#33333a', count: 1 },
+    { kind: 'bunker', wallHeight: 24, wall: '#44444c', roof: '#303036', count: 1 },
+  ],
+  server_farm: [
+    { kind: 'warehouse', wallHeight: 62, wall: '#28323c', roof: '#39d0d8', count: 3 },
+    { kind: 'tower', wallHeight: 156, wall: '#22303a', roof: '#2ad0e0', count: 2 },
+  ],
+  docks: [
+    { kind: 'warehouse', wallHeight: 56, wall: '#3a4a54', roof: '#5a7a8a', count: 3 },
+    { kind: 'hut', wallHeight: 30, wall: '#43545e', roof: '#2f3d45', count: 2 },
+    { kind: 'bunker', wallHeight: 26, wall: '#3d4a52', roof: '#2c363c', count: 1 },
+  ],
 };
 
 const FOOTPRINTS: Record<BuildingKind, [number, number]> = {
