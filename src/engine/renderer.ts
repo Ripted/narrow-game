@@ -1,9 +1,11 @@
 import { Entity, Vector2 } from '../types';
 import { Camera } from './camera';
+import { EntitySpriteSystem } from './entitySprite';
 
 export class Renderer {
   ctx: CanvasRenderingContext2D;
   canvas: HTMLCanvasElement;
+  sprites = new EntitySpriteSystem();
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -22,8 +24,8 @@ export class Renderer {
     const top = camera.pos.y;
     const right = left + camera.viewport.x;
     const bottom = top + camera.viewport.y;
-    // Small padding so entities pop in just off-screen instead of at the edge.
-    const pad = 80;
+    // Extra headroom so tall sprites and nameplates pop in off-screen.
+    const pad = 110;
     return (
       x + w >= left - pad &&
       x <= right + pad &&
@@ -37,30 +39,18 @@ export class Renderer {
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  drawEntity(entity: Entity, camera: Camera, hp?: { hp: number; maxHp: number }) {
-    const { pos, size, color, name } = entity;
+  /** Advances animation state and draws a single entity (human or object). */
+  drawEntity(
+    entity: Entity,
+    camera: Camera,
+    hp?: { hp: number; maxHp: number },
+    dtMs = 16
+  ) {
+    const { pos, size } = entity;
+    if (!this.isVisible(pos.x, pos.y - size.y * 1.6, size.x, size.y * 2.6, camera)) return;
 
-    if (!this.isVisible(pos.x, pos.y, size.x, size.y, camera)) return;
-
-    // Draw body
-    this.ctx.fillStyle = color;
-    this.ctx.fillRect(pos.x, pos.y, size.x, size.y);
-
-    // Draw name
-    this.ctx.fillStyle = 'white';
-    this.ctx.font = '12px Inter';
-    this.ctx.textAlign = 'center';
-    this.ctx.fillText(name, pos.x + size.x / 2, pos.y - 10);
-
-    if (hp) {
-      const barW = Math.max(size.x, 40);
-      const barX = pos.x + size.x / 2 - barW / 2;
-      const barY = pos.y - 24;
-      this.ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      this.ctx.fillRect(barX, barY, barW, 5);
-      this.ctx.fillStyle = '#ff0000';
-      this.ctx.fillRect(barX, barY, barW * Math.max(0, hp.hp / hp.maxHp), 5);
-    }
+    this.sprites.update(entity, dtMs);
+    this.sprites.draw(this.ctx, entity, { hp });
   }
 
   drawWorld(locations: any, camera: Camera) {
@@ -87,26 +77,11 @@ export class Renderer {
   }
 
   /**
-   * Draws a simple blocky avatar for dialogue portraits using the entity's
-   * colour, giving characters a distinct look without external art.
+   * Draws a bust-style portrait for the dialogue box, matching the character's
+   * world sprite.
    */
   drawPortrait(ctx: CanvasRenderingContext2D, entity: Entity, x: number, y: number, size: number) {
-    ctx.save();
-    ctx.fillStyle = '#111';
-    ctx.fillRect(x, y, size, size);
-
-    // Face
-    ctx.fillStyle = entity.color;
-    ctx.fillRect(x + size * 0.12, y + size * 0.12, size * 0.76, size * 0.76);
-
-    // Eyes
-    ctx.fillStyle = '#0d0d0d';
-    ctx.fillRect(x + size * 0.3, y + size * 0.38, size * 0.12, size * 0.12);
-    ctx.fillRect(x + size * 0.58, y + size * 0.38, size * 0.12, size * 0.12);
-
-    // Mouth
-    ctx.fillRect(x + size * 0.34, y + size * 0.66, size * 0.32, size * 0.08);
-    ctx.restore();
+    this.sprites.drawPortrait(ctx, entity, x, y, size);
   }
 
   drawInteractPrompt(pos: Vector2, text: string) {

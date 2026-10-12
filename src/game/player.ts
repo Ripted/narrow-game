@@ -1,4 +1,4 @@
-import { Entity, Vector2 } from '../types';
+import { Appearance, Entity, Vector2 } from '../types';
 import { CollisionSystem } from '../engine/collision';
 import { WORLD_OBJECTS } from '../world/objects';
 import { NPCS } from '../data/npcs';
@@ -10,12 +10,14 @@ export class Player implements Entity {
   size: Vector2 = { x: 30, y: 30 };
   color: string;
   type: 'player' = 'player';
+  appearance?: Appearance;
   speed: number = 5;
 
-  constructor(name: string, color: string, startPos: Vector2) {
+  constructor(name: string, color: string, startPos: Vector2, appearance?: Appearance) {
     this.name = name;
     this.color = color;
     this.pos = startPos;
+    this.appearance = appearance;
   }
 
   private solid(): any[] {
