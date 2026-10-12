@@ -207,14 +207,15 @@ export default function App() {
   useEffect(() => {
     if (!gameState || !canvasRef.current) return;
 
-    const char = CHARACTERS.find(c => c.id === gameState.player.characterType) || CHARACTERS[0];
     if (!engineRef.current) {
+      const char = CHARACTERS.find(c => c.id === gameState.player.characterType) || CHARACTERS[0];
+      const player = new Player(gameState.player.name, char.color, gameState.player.pos, char.appearance);
       const canvas = canvasRef.current;
       engineRef.current = {
         renderer: new Renderer(canvas),
         input: new InputHandler(),
         camera: new Camera(canvas.width, canvas.height),
-        player: new Player(gameState.player.name, char.color, gameState.player.pos, char.appearance),
+        player,
       };
     }
 
@@ -636,7 +637,6 @@ export default function App() {
             </div>
           ))}
         </div>
-
         {hasSave && (
           <div className="save-slots mt-8">
             <div className="text-neon-gold mb-2 uppercase tracking-widest text-sm">Continue</div>
