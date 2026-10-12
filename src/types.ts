@@ -17,12 +17,19 @@ export interface Entity {
 export interface NPC extends Entity {
   dialogueId: string;
   homeLocation: string;
+  portrait?: string;
+  hp?: number;
+  boss?: boolean;
 }
 
 export interface WorldObject extends Entity {
   interactable: boolean;
   description?: string;
   dialogueId?: string;
+  /** Item picked up on interaction and added to the inventory. */
+  itemId?: string;
+  /** Marks a hidden secret that unlocks an achievement when found. */
+  secretId?: string;
 }
 
 export interface DialogueNode {
@@ -38,21 +45,44 @@ export interface DialogueOption {
   condition?: (state: GameState) => boolean;
 }
 
+export interface Quest {
+  id: string;
+  title: string;
+  description: string;
+  isCompleted: boolean;
+}
+
 export interface GameState {
   player: {
     name: string;
     characterType: string;
     pos: Vector2;
     inventory: string[];
+    hp: number;
+    maxHp: number;
+    gold: number;
+    /** Milliseconds of active play time. */
+    playtime: number;
   };
-  flags: Record<string, boolean | number | string>;
+  flags: Record<string, any>;
   activeQuests: string[];
+  completedQuests: string[];
+  unlockedAchievements: string[];
   currentLocation: string;
 }
 
-export interface Quest {
+export interface InventoryItem {
   id: string;
-  title: string;
+  name: string;
   description: string;
-  isCompleted: boolean;
+  color: string;
+  /** When true the item can be used as a weapon during combat. */
+  weapon?: boolean;
+  damage?: number;
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
 }

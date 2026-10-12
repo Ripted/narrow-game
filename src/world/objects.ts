@@ -69,6 +69,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     color: '#ffd700',
     type: 'object',
     interactable: true,
+    secretId: 'found_poop_plaque',
     description: 'Commemorating the poop video incident. 20000 years ago.'
   },
   {
@@ -79,6 +80,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     color: '#333333',
     type: 'object',
     interactable: true,
+    secretId: 'read_20000_carving',
     description: '"20000 years ago" is carved into the floor here.'
   },
   {
@@ -89,6 +91,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     color: '#ffffff',
     type: 'object',
     interactable: true,
+    itemId: 'update_fragment',
     description: 'The final update fragment. It smells like 20000 years of development.'
   },
   {
@@ -99,6 +102,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     color: '#ff0000',
     type: 'object',
     interactable: true,
+    secretId: 'leaked_the_ip',
     description: "It's Ripted's IP leak date. Nobody knows how it got here."
   },
   {
@@ -109,6 +113,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     color: '#ffffff',
     type: 'object',
     interactable: true,
+    secretId: 'zu_zahlen',
     description: '"Zu zahlen 0.01" is spray-painted here.'
   },
   {
@@ -159,6 +164,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     color: '#ffffff',
     type: 'object',
     interactable: true,
+    itemId: 'update_fragment',
     description: 'A glowing update fragment. It contains code for a new level.'
   },
   {
@@ -169,6 +175,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     color: '#ffffff',
     type: 'object',
     interactable: true,
+    itemId: 'update_fragment',
     description: 'A glowing update fragment. It contains a bug fix for Champy.'
   },
   {
@@ -179,6 +186,30 @@ export const WORLD_OBJECTS: WorldObject[] = [
     color: '#f5deb3',
     type: 'object',
     interactable: true,
+    itemId: 'baguette',
     description: 'A very hard baguette. Could be used as a weapon.'
+  },
+  {
+    id: 'paprika_shrine',
+    name: 'Paprika Shrine',
+    pos: { x: 350, y: 1550 },
+    size: { x: 60, y: 60 },
+    color: '#b22222',
+    type: 'object',
+    interactable: true,
+    itemId: 'paprika',
+    description: 'A shrine to the paprika king. A glowing red shard sits on top.'
+  },
+  {
+    id: 'hidden_admin_key',
+    name: 'Rusty Key',
+    pos: { x: 3250, y: 2150 },
+    size: { x: 20, y: 20 },
+    color: '#c0c0c0',
+    type: 'object',
+    interactable: true,
+    itemId: 'admin_key',
+    secretId: 'found_admin_key',
+    description: 'A rusty key half-buried in the Dead Zone. It hums faintly with update energy.'
   }
 ];

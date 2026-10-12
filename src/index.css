@@ -141,3 +141,293 @@ body {
   border-color: var(--color-neon-orange);
   background: rgba(255, 170, 0, 0.2);
 }
+
+/* ---- Minimap ---- */
+.minimap {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  width: 170px;
+  height: 120px;
+  border: 1px solid var(--color-neon-cyan);
+  background: rgba(13, 13, 13, 0.85);
+  z-index: 50;
+}
+
+/* ---- HUD ---- */
+.hud-stats {
+  position: absolute;
+  top: 20px;
+  left: 210px;
+  background: rgba(13, 13, 13, 0.8);
+  border-left: 4px solid var(--color-neon-red);
+  padding: 8px 12px;
+  font-size: 12px;
+  z-index: 50;
+  min-width: 150px;
+}
+
+.hud-hp-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 4px 0;
+  overflow: hidden;
+}
+
+.hud-hp-bar > div {
+  height: 100%;
+  background: var(--color-neon-green);
+  transition: width 0.2s;
+}
+
+.hud-hp-bar.boss > div {
+  background: var(--color-neon-red);
+}
+
+.boss-bar {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  background: rgba(13, 13, 13, 0.9);
+  border: 1px solid var(--color-neon-red);
+  padding: 6px 10px;
+  z-index: 60;
+  text-align: center;
+}
+
+.boss-label {
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-neon-red);
+}
+
+.speedrun-hud {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(13, 13, 13, 0.85);
+  border: 1px solid var(--color-neon-cyan);
+  padding: 6px 16px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  z-index: 55;
+}
+
+/* ---- Portraits ---- */
+.portrait-canvas {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  border: 2px solid var(--color-neon-cyan);
+  image-rendering: pixelated;
+}
+
+/* ---- Inventory ---- */
+.inventory-panel {
+  position: absolute;
+  top: 20px;
+  right: 290px;
+  background: rgba(13, 13, 13, 0.9);
+  border: 1px solid var(--color-neon-cyan);
+  padding: 15px;
+  width: 300px;
+  max-height: 60vh;
+  overflow-y: auto;
+  z-index: 60;
+}
+
+.inventory-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px;
+  margin-bottom: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.inventory-item:hover {
+  background: rgba(0, 255, 255, 0.08);
+}
+
+.inventory-item.equipped {
+  border-color: var(--color-neon-orange);
+  background: rgba(255, 170, 0, 0.12);
+}
+
+.inv-dot {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 3px;
+  border-radius: 2px;
+}
+
+/* ---- Toasts ---- */
+.toast-stack {
+  position: absolute;
+  bottom: 150px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 300;
+  pointer-events: none;
+}
+
+.toast {
+  background: rgba(13, 13, 13, 0.95);
+  border: 1px solid var(--color-neon-gold);
+  border-left: 4px solid var(--color-neon-gold);
+  padding: 10px 14px;
+  width: 280px;
+  animation: toast-in 0.25s ease-out;
+  box-shadow: 0 0 16px rgba(255, 215, 0, 0.15);
+}
+
+.toast-title {
+  color: var(--color-neon-gold);
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.toast-desc {
+  font-size: 12px;
+  color: #bdbdbd;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ---- Save slots ---- */
+.save-slots {
+  text-align: center;
+}
+
+.slot-button {
+  padding: 10px 18px;
+  border: 1px solid var(--color-neon-gold);
+  color: var(--color-neon-gold);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.slot-button:hover:not(:disabled) {
+  background: var(--color-neon-gold);
+  color: black;
+}
+
+.slot-button:disabled {
+  border-color: #333;
+  color: #555;
+  cursor: default;
+}
+
+/* ---- Pause overlay ---- */
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  gap: 12px;
+}
+
+.pause-button {
+  width: 280px;
+  padding: 12px;
+  border: 2px solid;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+}
+
+.pause-button.cyan { border-color: var(--color-neon-cyan); color: var(--color-neon-cyan); }
+.pause-button.cyan:hover { background: var(--color-neon-cyan); color: black; }
+.pause-button.gold { border-color: var(--color-neon-gold); color: var(--color-neon-gold); }
+.pause-button.gold:hover { background: var(--color-neon-gold); color: black; }
+.pause-button.purple { border-color: var(--color-neon-purple); color: var(--color-neon-purple); }
+.pause-button.purple:hover { background: var(--color-neon-purple); color: black; }
+.pause-button.grey { border-color: #666; color: #999; }
+.pause-button.grey:hover { background: #666; color: white; }
+
+/* ---- Ending stats ---- */
+.ending-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(13, 13, 13, 0.8);
+  border: 1px solid var(--color-neon-cyan);
+  padding: 16px 28px;
+  font-size: 14px;
+  color: #ddd;
+}
+
+/* ---- Touch controls ---- */
+.touch-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 150;
+}
+
+.joystick {
+  position: absolute;
+  bottom: 30px;
+  left: 30px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(0, 255, 255, 0.12);
+  border: 2px solid rgba(0, 255, 255, 0.4);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.touch-buttons {
+  position: absolute;
+  bottom: 30px;
+  right: 30px;
+  display: grid;
+  grid-template-columns: repeat(2, 56px);
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.touch-buttons button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--color-neon-orange);
+  background: rgba(255, 170, 0, 0.15);
+  color: var(--color-neon-orange);
+  font-weight: bold;
+  font-size: 16px;
+}
+
+/* ---- Controls hint ---- */
+.controls-hint {
+  position: absolute;
+  bottom: 4px;
+  right: 8px;
+  font-size: 11px;
+  color: #666;
+  z-index: 40;
+}
+
+.hidden-tick {
+  display: none;
+}
+
