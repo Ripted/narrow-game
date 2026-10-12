@@ -290,6 +290,64 @@ export function drawProp(ctx: Ctx, kind: PropKind, cx: number, baseY: number, w:
     }
     case 'banner':
       break; // handled as a world object
+    case 'adboard': {
+      // Lit roadside billboard.
+      ctx.fillStyle = shade('#20242c', -0.2);
+      ctx.fillRect(cx - 4, baseY - h * 0.5, 8, h * 0.5);
+      ctx.fillStyle = linear(ctx, baseY - h, baseY - h * 0.5, shade(color, 0.2), shade(color, -0.3));
+      ctx.fillRect(cx - w / 2, baseY - h, w, h * 0.55);
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cx - w / 2, baseY - h, w, h * 0.55);
+      ctx.fillStyle = withAlpha('#ffffff', 0.85);
+      ctx.fillRect(cx - w * 0.4, baseY - h + h * 0.12, w * 0.8, h * 0.06);
+      ctx.fillRect(cx - w * 0.4, baseY - h + h * 0.24, w * 0.55, h * 0.06);
+      break;
+    }
+    case 'statue_risque': {
+      // Classical marble figure (Venus-style), kept abstract and tasteful.
+      ctx.fillStyle = shade('#cfc6ba', -0.4);
+      ctx.fillRect(cx - s * 0.5, baseY - h * 0.24, s, h * 0.24);
+      const g = linear(ctx, baseY - h, baseY - h * 0.3, shade('#e6ded2', 0.1), shade('#b8ada0', -0.2));
+      // Hips and legs.
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - s * 0.24, baseY - h * 0.62, s * 0.48, h * 0.42);
+      // Torso.
+      ctx.beginPath();
+      ctx.ellipse(cx, baseY - h * 0.72, s * 0.26, h * 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Implied chest — two simple forms, no detail.
+      ctx.beginPath();
+      ctx.arc(cx - s * 0.11, baseY - h * 0.8, s * 0.09, 0, Math.PI * 2);
+      ctx.arc(cx + s * 0.11, baseY - h * 0.8, s * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+      // Head.
+      ctx.beginPath();
+      ctx.arc(cx, baseY - h * 0.98, s * 0.13, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'dumpster': {
+      ctx.fillStyle = linear(ctx, baseY - h, baseY, shade(color, 0.2), shade(color, -0.3));
+      ctx.fillRect(cx - w / 2, baseY - h * 0.8, w, h * 0.8);
+      ctx.fillStyle = shade(color, 0.35);
+      ctx.fillRect(cx - w / 2 - 2, baseY - h, w + 4, h * 0.22);
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cx - w / 2, baseY - h * 0.8, w, h * 0.8);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(cx - w / 2 + 4, baseY - h * 0.7, w - 8, h * 0.08);
+      break;
+    }
+    case 'beer_tap': {
+      ctx.fillStyle = shade('#3a2a1a', -0.1);
+      ctx.fillRect(cx - s * 0.3, baseY - h, s * 0.6, h);
+      ctx.fillStyle = linear(ctx, baseY - h * 1.5, baseY - h, shade(color, 0.3), shade(color, -0.2));
+      ctx.fillRect(cx - s * 0.14, baseY - h * 1.4, s * 0.28, h * 0.5);
+      ctx.fillStyle = '#c9c9c9';
+      ctx.fillRect(cx - s * 0.2, baseY - h * 0.95, s * 0.4, h * 0.08);
+      break;
+    }
     default: {
       ctx.fillStyle = color;
       ctx.fillRect(cx - w / 2, baseY - h, w, h);
@@ -342,6 +400,12 @@ export function propEmissive(ctx: Ctx, kind: PropKind, cx: number, baseY: number
       break;
     case 'clock':
       blob(baseY - s * 0.62 - 4, s * 0.9, withAlpha(color, 0.3));
+      break;
+    case 'adboard':
+      blob(baseY - h * 0.7, s * 1.0, withAlpha(color, 0.28));
+      break;
+    case 'beer_tap':
+      blob(baseY - h * 1.2, s * 0.8, withAlpha(color, 0.3));
       break;
     default:
       break;

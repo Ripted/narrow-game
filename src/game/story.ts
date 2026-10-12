@@ -17,6 +17,12 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'night_owl', name: 'Night Owl', description: 'Be awake when the world turns to night.' },
   { id: 'well_rested', name: 'Well Rested', description: 'Rest at a campfire.' },
   { id: 'treasure_hunter', name: 'Treasure Hunter', description: 'Open a chest.' },
+  { id: 'wanted_man', name: 'Wanted Man', description: 'Reach a four-star wanted level.' },
+  { id: 'roadkill', name: 'Roadkill', description: 'Flatten a hostile with a car.' },
+  { id: 'sharp_tongue', name: 'Sharp Tongue', description: 'Hear a character swear. Loudly.' },
+  { id: 'night_shift', name: 'Night Shift', description: 'Visit The Feather Bordello.' },
+  { id: 'buzzed', name: 'Buzzed', description: 'Use a fictional intoxicant.' },
+  { id: 'goose_chase', name: 'Wild Goose Chase', description: 'Follow the goose to the docks.' },
 ];
 
 export const QUEST_DEFS: Record<string, Quest> = {
@@ -74,6 +80,24 @@ export const QUEST_DEFS: Record<string, Quest> = {
     description: 'The shrine gate is sealed. The rusty key is buried somewhere in the Dead Zone.',
     isCompleted: false,
   },
+  'Shake Down the Scrapyard': {
+    id: 'scrapyard',
+    title: 'Shake Down the Scrapyard',
+    description: 'A scrapyard in the Speedrun Zone "sells" cars. Buy something stolen.',
+    isCompleted: false,
+  },
+  'A Night at The Feather': {
+    id: 'bordello',
+    title: 'A Night at The Feather',
+    description: 'The bordello has a cover charge and a mystery. Step inside. Fade to black.',
+    isCompleted: false,
+  },
+  'Follow the Goose': {
+    id: 'goose',
+    title: 'Follow the Goose',
+    description: 'A goose at the docks owes someone money. Follow it and see where it waddles.',
+    isCompleted: false,
+  },
 };
 
 /**
@@ -90,6 +114,9 @@ export const QUEST_MARKERS: Record<string, { x: number; y: number; label: string
   'Warm Up at a Campfire': { x: 480, y: 480, label: 'Campfire, Spawn' },
   'Step Inside a Building': { x: 300, y: 300, label: 'Nearest building' },
   'Track Down the Shrine Key': { x: 3250, y: 2150, label: 'Rusty Key, Dead Zone' },
+  'Shake Down the Scrapyard': { x: 2150, y: 1250, label: 'Scrapyard, Speedrun Zone' },
+  'A Night at The Feather': { x: 3450, y: 1450, label: 'The Feather Bordello' },
+  'Follow the Goose': { x: 4300, y: 2300, label: 'The Goose, Docks' },
 };
 
 export class StoryManager {
@@ -117,6 +144,9 @@ export class StoryManager {
     if (state.flags.rested_at_campfire) add('Warm Up at a Campfire');
     if (state.flags.visited_dead_zone) add('Open the Sealed Gate');
     if (state.flags.visited_dev_room && !state.flags.found_admin_key) add('Track Down the Shrine Key');
+    if (state.flags.visited_scrapyard) add('Shake Down the Scrapyard');
+    if (state.flags.visited_bordello) add('A Night at The Feather');
+    if (state.flags.met_goose) add('Follow the Goose');
 
     if (state.flags.fragments_collected === 3) {
       complete('Collect Update Fragments');
@@ -128,6 +158,9 @@ export class StoryManager {
     if (state.flags.rested_at_campfire) complete('Warm Up at a Campfire');
     if (state.flags.gate_deadzone_open) complete('Open the Sealed Gate');
     if (state.flags.found_admin_key) complete('Track Down the Shrine Key');
+    if (state.flags.used_a_substance) complete('Shake Down the Scrapyard');
+    if (state.flags.bordello_visited) complete('A Night at The Feather');
+    if (state.flags.goose_followed) complete('Follow the Goose');
 
     if (state.flags.all_arcs_resolved) {
       complete('Bring Fragments to ESH');
@@ -191,6 +224,12 @@ export class StoryManager {
     unlock('night_owl', state.flags.saw_night === true);
     unlock('well_rested', state.flags.rested_at_campfire === true);
     unlock('treasure_hunter', state.flags.opened_chest === true);
+    unlock('wanted_man', ((state.flags.max_wanted_level as number) || 0) >= 4);
+    unlock('roadkill', state.flags.did_roadkill === true);
+    unlock('sharp_tongue', state.flags.heard_strong_language === true);
+    unlock('night_shift', state.flags.bordello_visited === true);
+    unlock('buzzed', state.flags.used_a_substance === true);
+    unlock('goose_chase', state.flags.goose_followed === true);
 
     return newly;
   }

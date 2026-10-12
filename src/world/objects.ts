@@ -1,4 +1,5 @@
 import { WorldObject } from '../types';
+import { GRAFFITI } from '../data/humor';
 
 export const WORLD_OBJECTS: WorldObject[] = [
   {
@@ -231,5 +232,26 @@ export const WORLD_OBJECTS: WorldObject[] = [
     itemId: 'admin_key',
     secretId: 'found_admin_key',
     description: 'A rusty key half-buried in the Dead Zone. It hums faintly with update energy.'
+  },
+  // ---- Graffiti tags: satirical, rude, and entirely in-world ----------------
+  {
+    id: 'graffiti_ripted', name: 'Graffiti', pos: { x: 1250, y: 2050 }, size: { x: 40, y: 40 },
+    color: '#ff5aa0', type: 'object', propKind: 'neon', interactable: true,
+    description: GRAFFITI[0],
+  },
+  {
+    id: 'graffiti_ghost', name: 'Graffiti', pos: { x: 2050, y: 2150 }, size: { x: 40, y: 40 },
+    color: '#7ac0ff', type: 'object', propKind: 'neon', interactable: true,
+    description: GRAFFITI[1],
+  },
+  {
+    id: 'graffiti_champy', name: 'Graffiti', pos: { x: 2520, y: 400 }, size: { x: 40, y: 40 },
+    color: '#bf00ff', type: 'object', propKind: 'neon', interactable: true,
+    description: GRAFFITI[2],
+  },
+  {
+    id: 'graffiti_paprika', name: 'Graffiti', pos: { x: 300, y: 1350 }, size: { x: 40, y: 40 },
+    color: '#b22222', type: 'object', propKind: 'neon', interactable: true,
+    description: GRAFFITI[6],
   }
 ];

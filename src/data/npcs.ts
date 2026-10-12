@@ -1,5 +1,6 @@
 import { NPC } from '../types';
 import { APPEARANCES } from './appearances';
+import { CRIME_NPCS } from './crime';
 
 export const NPCS: NPC[] = [
   {
@@ -146,5 +147,6 @@ export const NPCS: NPC[] = [
     type: 'npc',
     dialogueId: 'polar_main',
     homeLocation: 'speedrun_track'
-  }
+  },
+  ...CRIME_NPCS
 ];

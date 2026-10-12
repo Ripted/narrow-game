@@ -197,5 +197,73 @@ export const DIALOGUE: Record<string, DialogueNode[]> = {
       id: 'mazyx_1',
       text: 'non non non. xazikk is wrong as usual.',
     }
+  ],
+  bandit_main: [
+    {
+      id: 'bandit_1',
+      text: 'you want a car that is definitely not stolen? s**t, everyone wants that.',
+      options: [
+        { text: 'Is that legal?', nextNodeId: 'bandit_2' },
+        { text: 'How much?', nextNodeId: 'bandit_3' },
+        { text: 'You kiss your mother with that mouth?', nextNodeId: 'bandit_4', condition: (state) => state.flags.heard_strong_language !== true }
+      ]
+    },
+    {
+      id: 'bandit_2',
+      text: 'legal is a strong word. this is the Dead Zone adjacent. that is a f***ing technicality.',
+      onComplete: (state) => {
+        state.flags.heard_strong_language = true;
+      }
+    },
+    {
+      id: 'bandit_3',
+      text: 'for you? everything. for cash? less. try the scrapyard counter over there.'
+    },
+    {
+      id: 'bandit_4',
+      text: 'b***h, i am a wanted man. it comes with the job.',
+      onComplete: (state) => {
+        state.flags.heard_strong_language = true;
+      }
+    }
+  ],
+  mixologist_main: [
+    {
+      id: 'mixologist_1',
+      text: 'Welcome to the taps. We pour Arrow Ale, Nectar, and regret.',
+      options: [
+        { text: 'What is in the Nectar?', nextNodeId: 'mixologist_2' },
+        { text: 'Anything stronger?', nextNodeId: 'mixologist_3' }
+      ]
+    },
+    {
+      id: 'mixologist_2',
+      text: 'Pure uncut uptime. You will feel fast and see colours. Buy a round at the bar.'
+    },
+    {
+      id: 'mixologist_3',
+      text: 'There is Meme Dust. It is not food, not drug, not legal. It is a lifestyle.'
+    }
+  ],
+  goose_main: [
+    {
+      id: 'goose_1',
+      text: 'HONK.',
+      options: [
+        { text: 'Are you... wanted?', nextNodeId: 'goose_2' },
+        { text: 'Follow the goose.', nextNodeId: 'goose_3' }
+      ]
+    },
+    {
+      id: 'goose_2',
+      text: 'HONK. (The goose owes the docks a great deal of money. The goose is not sorry.)'
+    },
+    {
+      id: 'goose_3',
+      text: 'The goose waddles south, toward the far docks. You follow. It honks the entire way.',
+      onComplete: (state) => {
+        state.flags.goose_followed = true;
+      }
+    }
   ]
 };

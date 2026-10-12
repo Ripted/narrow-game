@@ -43,8 +43,8 @@ const THEMES: Record<string, ZoneTheme> = {
   },
   narrow_list_hq: {
     accent: '#d4af37',
-    kinds: ['column', 'statue', 'crate', 'book', 'monitor', 'column'],
-    colors: { column: '#b8b2a4', statue: '#cfc9b8', crate: '#8a6a30', book: '#7a3a3a', monitor: '#4a90d0' },
+    kinds: ['column', 'statue', 'statue_risque', 'crate', 'book', 'monitor', 'column'],
+    colors: { column: '#b8b2a4', statue: '#cfc9b8', statue_risque: '#ddd6c8', crate: '#8a6a30', book: '#7a3a3a', monitor: '#4a90d0' },
     count: 18,
   },
   level_editor: {
@@ -55,8 +55,8 @@ const THEMES: Record<string, ZoneTheme> = {
   },
   speedrun_track: {
     accent: '#39a0e0',
-    kinds: ['column', 'clock', 'neon', 'lamp', 'crate'],
-    colors: { column: '#7aa8c8', clock: '#39d0e0', neon: '#39d0e0', lamp: '#ffd070', crate: '#3a5a70' },
+    kinds: ['column', 'clock', 'neon', 'lamp', 'crate', 'beer_tap'],
+    colors: { column: '#7aa8c8', clock: '#39d0e0', neon: '#39d0e0', lamp: '#ffd070', crate: '#3a5a70', beer_tap: '#c98a2a' },
     count: 18,
   },
   french_cafe: {
@@ -91,8 +91,8 @@ const THEMES: Record<string, ZoneTheme> = {
   },
   the_highway: {
     accent: '#6a6a70',
-    kinds: ['lamp', 'fence', 'rock', 'fence', 'lamp'],
-    colors: { lamp: '#ffd070', fence: '#5a5a60', rock: '#55555a' },
+    kinds: ['lamp', 'fence', 'rock', 'fence', 'lamp', 'adboard'],
+    colors: { lamp: '#ffd070', fence: '#5a5a60', rock: '#55555a', adboard: '#e08a2a' },
     count: 18,
   },
   server_farm: {
@@ -103,8 +103,8 @@ const THEMES: Record<string, ZoneTheme> = {
   },
   docks: {
     accent: '#5a7a8a',
-    kinds: ['crate', 'barrel', 'crate', 'fence', 'rock', 'crate', 'barrel'],
-    colors: { crate: '#4a5a64', barrel: '#6a4a3a', fence: '#4a5560', rock: '#4a4a4a' },
+    kinds: ['crate', 'barrel', 'crate', 'fence', 'rock', 'crate', 'barrel', 'dumpster'],
+    colors: { crate: '#4a5a64', barrel: '#6a4a3a', fence: '#4a5560', rock: '#4a4a4a', dumpster: '#3a4a3a' },
     count: 28,
   },
 };
@@ -117,6 +117,7 @@ const SIZES: Record<PropKind, [number, number]> = {
   book: [20, 16], skull: [16, 16], statue: [28, 48], column: [26, 54], monitor: [28, 42],
   clock: [30, 30], board: [60, 80], banner: [200, 40], sign: [100, 60], shrine: [60, 60],
   baguette: [30, 10], plaque: [40, 40], crystal: [22, 30],
+  adboard: [120, 70], statue_risque: [30, 54], dumpster: [54, 40], beer_tap: [26, 44],
 };
 
 /** Deterministic PRNG (mulberry32) so the layout is identical every load. */

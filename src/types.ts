@@ -69,7 +69,11 @@ export type PropKind =
   | 'shrine'
   | 'baguette'
   | 'plaque'
-  | 'crystal';
+  | 'crystal'
+  | 'adboard'
+  | 'statue_risque'
+  | 'dumpster'
+  | 'beer_tap';
 
 /** A purely decorative world entity; never interactive, never solid. */
 export interface Prop extends Entity {
@@ -144,7 +148,7 @@ export interface Schedule {
   speed: number;
 }
 
-export type InteractiveKind = 'chest' | 'sign' | 'lever' | 'campfire' | 'merchant';
+export type InteractiveKind = 'chest' | 'sign' | 'lever' | 'campfire' | 'merchant' | 'bordello' | 'dumpster';
 
 /**
  * A hand-placed interactive fixture. Unlike props these can be used: chests
@@ -253,7 +257,7 @@ export interface TrafficRoute {
   interval: number;
 }
 
-export type EnemyKind = 'stalker' | 'brute' | 'drone';
+export type EnemyKind = 'stalker' | 'brute' | 'drone' | 'police';
 
 /** A hostile wanderer that chases and hits the player on contact. */
 export interface Enemy extends Entity {
@@ -271,6 +275,86 @@ export interface Enemy extends Entity {
 
 export type WeatherKind = 'clear' | 'rain' | 'snow';
 
+/** Content categories mirroring the game's maturity advisory. */
+export type MatureTag =
+  | 'violence'
+  | 'blood_gore'
+  | 'crime'
+  | 'humor'
+  | 'nudity'
+  | 'language'
+  | 'sexual'
+  | 'substances';
+
+/** A registry of every mature element, surfaced in the advisory screen. */
+export interface ContentAdvisory {
+  rating: string;
+  summary: string;
+  descriptors: { tag: MatureTag; label: string; blurb: string }[];
+}
+
+/** Intoxicants the player can buy and use; each applies a status effect. */
+export type SubstanceKind = 'ale' | 'dust' | 'nectar';
+
+export interface Substance {
+  id: string;
+  name: string;
+  /** In-universe advertising tagline (satirical). */
+  tagline: string;
+  /** Burn-off time for the high, in seconds. */
+  duration: number;
+  /** Movement multiplier while active. */
+  speedMul: number;
+  /** Camera wobble amplitude while active (0 = steady). */
+  wobble: number;
+  /** Screen tint applied while active. */
+  tint: string;
+  /** HP delta applied on use (negative for a hangover risk). */
+  hpDelta: number;
+  /** Short line printed when the high ends. */
+  comeDown: string;
+}
+
+/** Live intoxicant state for the player. */
+export interface SubstanceEffect {
+  kind: SubstanceKind;
+  /** Seconds remaining. */
+  remaining: number;
+  total: number;
+}
+
+/** A blood decal left behind by violence; persisted with the world. */
+export interface GoreDecal {
+  x: number;
+  y: number;
+  /** 0..1 initial scale, fades the longer it sits. */
+  size: number;
+  /** Which arc left it: enemies hit messy, cars smear. */
+  style: 'splat' | 'smear';
+}
+
+/** Live crime/wanted state. */
+export interface WantedState {
+  /** 0..5 stars. */
+  level: number;
+  /** Heat 0..1 driving the current level; decays when unseen. */
+  heat: number;
+  /** Seconds since the player last committed a crime. */
+  cooldown: number;
+}
+
+/** A police unit that spawns once the player is wanted. */
+export interface PoliceUnit extends Entity {
+  type: 'enemy';
+  enemyKind: 'police';
+  hp: number;
+  maxHp: number;
+  damage: number;
+  speed: number;
+  home: Vector2;
+  cooldown?: number;
+}
+
 export interface WorldSave {
   clock: number;
   npcPos: Record<string, Vector2>;
@@ -279,6 +363,10 @@ export interface WorldSave {
   openGateFlags: string[];
   killedEnemyIds: string[];
   weather: WeatherKind;
+  /** Blood decals left on the ground. */
+  gore?: GoreDecal[];
+  /** Persistent wanted heat so a chase survives a reload. */
+  wantedHeat?: number;
 }
 
 export interface WorldObject extends Entity {

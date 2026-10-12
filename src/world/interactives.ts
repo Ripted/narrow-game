@@ -1,5 +1,6 @@
 import { Gate, Interactive } from '../types';
 import { shade, withAlpha, hash01 } from '../engine/color';
+import { CRIME_INTERACTIVES } from '../data/crime';
 
 /**
  * Hand-placed fixtures the player can use. Kept in one file so placement and
@@ -94,6 +95,8 @@ export const INTERACTIVES: Interactive[] = [
       { itemId: 'pepper_spray', price: 20 },
     ],
   },
+  // ---- Crime-flavoured fixtures (shops, bar, bordello, dumpsters) -----------
+  ...CRIME_INTERACTIVES,
 ];
 
 /**
@@ -229,6 +232,47 @@ export function drawInteractive(
       ctx.arc(cx - w * 0.2, baseY - h * 0.32, 4, 0, Math.PI * 2);
       ctx.arc(cx + w * 0.2, baseY - h * 0.32, 4, 0, Math.PI * 2);
       ctx.fill();
+      break;
+    }
+    case 'bordello': {
+      // Neon-pink doorway. Suggestive marquee, mosaic over the mural.
+      ctx.fillStyle = shade(it.color, -0.4);
+      ctx.fillRect(it.pos.x, baseY - h, w, h);
+      const pulse = 0.55 + 0.45 * Math.sin(time * 2.5);
+      ctx.fillStyle = withAlpha('#ff6ab0', 0.5 * pulse);
+      ctx.fillRect(it.pos.x + 4, baseY - h + 6, w - 8, h - 10);
+      // Curtain threshold.
+      ctx.fillStyle = '#3a1028';
+      ctx.fillRect(it.pos.x + w * 0.34, baseY - h * 0.7, w * 0.32, h * 0.7);
+      // Feather motif.
+      ctx.strokeStyle = withAlpha('#ffffff', 0.7);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, baseY - h * 0.92);
+      ctx.quadraticCurveTo(cx - 12, baseY - h * 0.7, cx, baseY - h * 0.5);
+      ctx.stroke();
+      // Marquee bulbs.
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = withAlpha(i % 2 ? '#fff0b0' : '#ff8ac0', 0.6 + 0.4 * Math.sin(time * 4 + i));
+        ctx.beginPath();
+        ctx.arc(it.pos.x + 5 + i * ((w - 10) / 3), baseY - h - 3, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // The mosaic: a blank censor block, the joke is that it hides nothing.
+      ctx.fillStyle = '#c9a0c0';
+      ctx.fillRect(cx - 8, baseY - h * 0.62, 16, 10);
+      break;
+    }
+    case 'dumpster': {
+      ctx.fillStyle = shade('#3a4a3a', -0.25);
+      ctx.fillRect(it.pos.x, baseY - h * 0.85, w, h * 0.85);
+      ctx.fillStyle = shade('#3a4a3a', 0.25);
+      ctx.fillRect(it.pos.x - 3, baseY - h, w + 6, h * 0.2);
+      // Loot peeking out.
+      ctx.fillStyle = it.used ? 'rgba(0,0,0,0.35)' : '#c9a02a';
+      ctx.fillRect(it.pos.x + w * 0.2, baseY - h * 1.02, 8, 6);
+      ctx.fillStyle = withAlpha('#000000', 0.3);
+      ctx.fillRect(it.pos.x + 4, baseY - h * 0.6, w - 8, 4);
       break;
     }
   }

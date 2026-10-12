@@ -1,10 +1,10 @@
-import { Building, Car, Door, Enemy, Gate, Interior, NPC, TrafficRoute, Vector2, WeatherKind, WorldSave } from '../types';
+import { Building, Car, Door, Enemy, Gate, GoreDecal, Interior, NPC, PoliceUnit, TrafficRoute, Vector2, WeatherKind, WorldSave, WantedState } from '../types';
 import { NPCS } from '../data/npcs';
 import { BUILDINGS } from '../world/buildings';
 import { GATES, INTERACTIVES } from '../world/interactives';
 import { interiorFor } from '../world/interiors';
 import { parkedCars, TRAFFIC_ROUTES, carSpec } from '../world/cars';
-import { spawnEnemies } from '../world/enemies';
+import { spawnEnemies, POLICE_SPEC } from '../world/enemies';
 import { WeatherSystem } from '../world/weather';
 import { SCHEDULES, NPC_ROUTINES } from './schedules';
 
@@ -18,6 +18,10 @@ const playerApproachOffset = 14;
 const AGGRO_RANGE = 270;
 /** Distance from home beyond which the enemy gives up and returns. */
 const LEASH_RANGE = 520;
+/** Heat threshold for each successive wanted star. */
+const STAR_HEAT = [0.12, 0.3, 0.5, 0.7, 0.88];
+/** Police further than this from the player are despawned. */
+const POLICE_DESPAWN_RANGE = 2600;
 
 interface LiveNpc extends NPC {
   /** Current waypoint index on the assigned route. */
@@ -52,9 +56,17 @@ export class WorldRuntime {
   gates: Gate[];
   cars: Car[];
   enemies: Enemy[];
+  police: PoliceUnit[] = [];
+  wanted: WantedState = { level: 0, heat: 0, cooldown: 0 };
+  /** Blood decals, persisted with the world. */
+  gore: GoreDecal[] = [];
   weather = new WeatherSystem();
   /** Damage the player should take this frame from enemy contact. */
   pendingDamage = 0;
+  /** True when a police bullet or baton landed this frame. */
+  pendingPoliceHit = false;
+  /** Crime events raised this frame, for the app to toast/score. */
+  crimeEvents: string[] = [];
   /** Ids of fixtures already consumed (chests opened, levers pulled). */
   usedInteractives = new Set<string>();
   /** Lever/gate flags that have been activated, so they persist. */
@@ -66,6 +78,8 @@ export class WorldRuntime {
   private buildingByZone = new Map<string, Building[]>();
   private routes = new Map<string, RouteGeom>();
   private viewport: Vector2 = { x: 1280, y: 720 };
+  private policeSpawnTimer = 0;
+  private nextPoliceId = 0;
 
   constructor() {
     for (const b of BUILDINGS) {
@@ -201,8 +215,117 @@ export class WorldRuntime {
     }
 
     this.stepTraffic(dtSec);
-    if (playerPos) this.stepEnemies(dtSec, playerPos);
+    if (playerPos) {
+      this.stepEnemies(dtSec, playerPos);
+      this.stepWanted(dtSec, playerPos);
+      this.stepPolice(dtSec, playerPos);
+    }
     this.weather.update(dtSec, this.viewport.x, this.viewport.y, this.daylight);
+  }
+
+  /** Registers a crime, raising heat toward the matching star level. */
+  commitCrime(kind: string, heat: number) {
+    this.wanted.heat = Math.min(1, this.wanted.heat + heat);
+    this.wanted.cooldown = 6;
+    this.crimeEvents.push(kind);
+  }
+
+  private stepWanted(dtSec: number, playerPos: Vector2) {
+    if (this.wanted.cooldown > 0) this.wanted.cooldown -= dtSec;
+    // Heat cools only once the player has been out of trouble for a moment.
+    if (this.wanted.cooldown <= 0 && this.wanted.heat > 0) {
+      this.wanted.heat = Math.max(0, this.wanted.heat - dtSec * 0.05);
+    }
+    // Police in contact keep the chase hot.
+    const seen = this.police.some(
+      (p) => Math.hypot(p.pos.x - playerPos.x, p.pos.y - playerPos.y) < 340
+    );
+    if (seen) this.wanted.heat = Math.min(1, this.wanted.heat + dtSec * 0.06);
+
+    let level = 0;
+    for (let i = 0; i < STAR_HEAT.length; i++) if (this.wanted.heat >= STAR_HEAT[i]) level = i + 1;
+    this.wanted.level = level;
+  }
+
+  private stepPolice(dtSec: number, playerPos: Vector2) {
+    // Spawn units while wanted, scaling with the star level.
+    if (this.wanted.level > 0) {
+      this.policeSpawnTimer -= dtSec;
+      const target = this.wanted.level;
+      if (this.policeSpawnTimer <= 0 && this.police.length < target) {
+        this.policeSpawnTimer = 1.6;
+        this.spawnPolice(playerPos);
+      }
+    } else if (this.police.length === 0) {
+      this.policeSpawnTimer = 0;
+    }
+
+    for (const p of this.police) {
+      if (p.cooldown && p.cooldown > 0) p.cooldown -= dtSec;
+      const pcx = playerPos.x;
+      const pcy = playerPos.y;
+      const ecx = p.pos.x + p.size.x / 2;
+      const ecy = p.pos.y + p.size.y / 2;
+      const dx = pcx - ecx;
+      const dy = pcy - ecy;
+      const d = Math.hypot(dx, dy) || 1;
+      const step = p.speed * dtSec;
+      const nx = p.pos.x + (dx / d) * step;
+      const ny = p.pos.y + (dy / d) * step;
+      if (!this.insideBuilding(nx, ny, p.size)) {
+        p.pos.x = nx;
+        p.pos.y = ny;
+      }
+      // Baton contact damage, rate-limited.
+      if (d < 28 + p.size.x / 2 && (!p.cooldown || p.cooldown <= 0)) {
+        this.pendingDamage += p.damage;
+        this.pendingPoliceHit = true;
+        p.cooldown = 1.1;
+      }
+    }
+
+    // Despawn units that fall far behind once the heat is down.
+    if (this.wanted.level === 0) {
+      this.police = this.police.filter(
+        (p) => Math.hypot(p.pos.x - playerPos.x, p.pos.y - playerPos.y) < POLICE_DESPAWN_RANGE
+      );
+    }
+  }
+
+  private spawnPolice(playerPos: Vector2) {
+    // Spawn just off-screen in a random direction.
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 700 + Math.random() * 300;
+    const x = Math.max(0, Math.min(5600 - POLICE_SPEC.size.x, playerPos.x + Math.cos(ang) * dist));
+    const y = Math.max(0, Math.min(4000 - POLICE_SPEC.size.y, playerPos.y + Math.sin(ang) * dist));
+    this.police.push({
+      id: `police_${this.nextPoliceId++}`,
+      name: 'Police Cruiser',
+      type: 'enemy',
+      enemyKind: 'police',
+      pos: { x, y },
+      size: { ...POLICE_SPEC.size },
+      color: POLICE_SPEC.color,
+      hp: POLICE_SPEC.hp,
+      maxHp: POLICE_SPEC.hp,
+      damage: POLICE_SPEC.damage,
+      speed: POLICE_SPEC.speed,
+      home: { x, y },
+      cooldown: 0,
+    });
+  }
+
+  /** Adds a stylised blood decal at the given world point. */
+  addGore(x: number, y: number, style: GoreDecal['style'] = 'splat', size = 1) {
+    this.gore.push({ x, y, size, style });
+    if (this.gore.length > 220) this.gore.splice(0, this.gore.length - 220);
+  }
+
+  /** True when any police unit can currently see the player. */
+  policeVisible(playerPos: Vector2): boolean {
+    return this.police.some(
+      (p) => Math.hypot(p.pos.x - playerPos.x, p.pos.y - playerPos.y) < 340
+    );
   }
 
   private stepTraffic(dtSec: number) {
@@ -358,14 +481,48 @@ export class WorldRuntime {
   /** Applies damage to a hostile; removes it at zero hp. Returns true if slain. */
   damageEnemy(id: string, dmg: number): boolean {
     const e = this.enemies.find((x) => x.id === id);
-    if (!e) return false;
-    e.hp -= dmg;
-    if (e.hp <= 0) {
-      this.deadEnemies.add(id);
-      this.enemies = this.enemies.filter((x) => x.id !== id);
-      return true;
+    if (e) {
+      e.hp -= dmg;
+      if (e.hp <= 0) {
+        this.deadEnemies.add(id);
+        this.enemies = this.enemies.filter((x) => x.id !== id);
+        this.addGore(e.pos.x + e.size.x / 2, e.pos.y + e.size.y / 2, 'splat', 1);
+        // Killing a civilian is a serious crime.
+        this.commitCrime('murder', 0.42);
+        return true;
+      }
+      return false;
+    }
+    // Police are attackable too; striking one is "resisting arrest".
+    const p = this.police.find((x) => x.id === id);
+    if (p) {
+      p.hp -= dmg;
+      this.commitCrime('assault_officer', 0.3);
+      if (p.hp <= 0) {
+        this.addGore(p.pos.x + p.size.x / 2, p.pos.y + p.size.y / 2, 'splat', 1.2);
+        this.police = this.police.filter((x) => x.id !== id);
+        this.commitCrime('officer_down', 0.5);
+        return true;
+      }
+      return false;
     }
     return false;
+  }
+
+  /** Nearest hostile OR police unit the player can strike. */
+  anyTargetAt(pos: Vector2, size: Vector2, radius = 60): Enemy | PoliceUnit | null {
+    return this.enemyAt(pos, size, radius) || this.policeAt(pos, size, radius);
+  }
+
+  /** Nearest police unit within radius. */
+  policeAt(pos: Vector2, size: Vector2, radius = 60): PoliceUnit | null {
+    let best: PoliceUnit | null = null;
+    let bestD = radius;
+    for (const p of this.police) {
+      const d = Math.hypot(pos.x + size.x / 2 - (p.pos.x + p.size.x / 2), pos.y + size.y / 2 - (p.pos.y + p.size.y / 2));
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    return best;
   }
 
   /** Solid world rectangles for exterior collision (closed gates only). */
@@ -418,6 +575,8 @@ export class WorldRuntime {
       openGateFlags: [...this.openGateFlags],
       killedEnemyIds: [...this.deadEnemies],
       weather: this.weather.weather,
+      gore: this.gore.slice(-120),
+      wantedHeat: this.wanted.heat,
     };
   }
 
@@ -440,5 +599,12 @@ export class WorldRuntime {
       this.enemies = this.enemies.filter((e) => !this.deadEnemies.has(e.id));
     }
     if (s.weather) this.weather.setWeather(s.weather as WeatherKind);
+    if (s.gore) this.gore = s.gore.map((g) => ({ ...g }));
+    if (typeof s.wantedHeat === 'number') {
+      this.wanted.heat = s.wantedHeat;
+      let level = 0;
+      for (let i = 0; i < STAR_HEAT.length; i++) if (this.wanted.heat >= STAR_HEAT[i]) level = i + 1;
+      this.wanted.level = level;
+    }
   }
 }

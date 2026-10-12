@@ -51,6 +51,44 @@ export const ITEMS: Record<string, InventoryItem> = {
     weapon: true,
     damage: 6,
   },
+  // ---- Fictional intoxicants (status-effect consumables) --------------------
+  arrow_ale: {
+    id: 'arrow_ale',
+    name: 'Arrow Ale',
+    description: 'The official drink of bad decisions. Use for a warm, blurry buzz.',
+    color: '#c98a2a',
+  },
+  meme_dust: {
+    id: 'meme_dust',
+    name: 'Meme Dust',
+    description: 'See the whole timeline. Regret the whole timeline. Use with caution.',
+    color: '#a05ad0',
+  },
+  server_nectar: {
+    id: 'server_nectar',
+    name: 'Server Nectar',
+    description: 'Pure uncut uptime. Use for a fast, humming high.',
+    color: '#39c0b0',
+  },
+  // ---- Crime loot -----------------------------------------------------------
+  stolen_watch: {
+    id: 'stolen_watch',
+    name: 'Hot Watch',
+    description: 'Fell off a wrist near the French Café. It fell very fast.',
+    color: '#d4af37',
+  },
+  bootleg_film: {
+    id: 'bootleg_film',
+    name: 'Bootleg Film',
+    description: 'A very explicit movie. Rated XXX for the mosaic blur alone.',
+    color: '#7a2a5a',
+  },
+  feather_token: {
+    id: 'feather_token',
+    name: 'Feather Token',
+    description: 'Proof you visited The Feather. The details are between you and the fade.',
+    color: '#e46aa0',
+  },
 };
 
 export const STARTING_ITEM = 'rusty_stick';

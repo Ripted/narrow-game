@@ -12,13 +12,17 @@ import { BUILDINGS } from './world/buildings';
 import { LOCATIONS, LOCATION_MINIMAP_COLORS } from './data/locations';
 import { DIALOGUE } from './data/characters';
 import { ITEMS, STARTING_ITEM } from './data/items';
-import { NPC as NpcType, DialogueNode, GameState, Vector2, Achievement, Interior, ShopEntry, Enemy, Car } from './types';
+import { NPC as NpcType, DialogueNode, GameState, Vector2, Achievement, Interior, ShopEntry, Enemy, Car, SubstanceEffect } from './types';
 import { StoryManager, QUEST_MARKERS } from './game/story';
 import { StateManager, SLOT_COUNT } from './game/state';
 import { WorldRuntime } from './game/world';
 import { INTERACTIVES } from './world/interactives';
+import { drawGore } from './world/enemies';
 import { BUILDING_LABELS } from './types';
 import { AudioManager } from './audio';
+import { SUBSTANCES, SUBSTANCE_ITEM } from './data/substances';
+import { RADIO_STATIONS, applyLanguageFilter, GRAFFITI } from './data/humor';
+import { CONTENT_ADVISORY, ADVISORY_ACCEPT_KEY } from './data/mature';
 import { CharacterPreview } from './components/CharacterPreview';
 
 const CHARACTERS = [
@@ -141,6 +145,21 @@ export default function App() {
   const shakeRef = useRef(0);
   const enemyHitRef = useRef(0);
   const [drivingName, setDrivingName] = useState<string | null>(null);
+  // ---- Mature-content state -------------------------------------------------
+  const [advisoryOpen, setAdvisoryOpen] = useState(
+    () => typeof localStorage !== 'undefined' && localStorage.getItem(ADVISORY_ACCEPT_KEY) !== '1'
+  );
+  const [strongLanguage, setStrongLanguage] = useState(false);
+  const [radioOn, setRadioOn] = useState(true);
+  const [radioIdx, setRadioIdx] = useState(0);
+  const [radioLine, setRadioLine] = useState(0);
+  const [substance, setSubstance] = useState<SubstanceEffect | null>(null);
+  const substanceRef = useRef<SubstanceEffect | null>(null);
+  const radioTimerRef = useRef(0);
+  const wantedRef = useRef(0);
+  const [wantedLevel, setWantedLevel] = useState(0);
+  const strongLanguageRef = useRef(false);
+  strongLanguageRef.current = strongLanguage;
 
   const addToast = useCallback((title: string, description: string) => {
     const id = ++toastIdRef.current;
@@ -440,6 +459,61 @@ export default function App() {
       const interior = activeInteriorRef.current;
       const paused = isPaused || !!ending || !!shop;
 
+      // ---- Crime / wanted feedback: toast new crimes, track the top star ----
+      if (world.crimeEvents.length) {
+        const events = world.crimeEvents.splice(0, world.crimeEvents.length);
+        for (const ev of events) {
+          if (getAudio) getAudio().hurt();
+          const label = ev.replace(/_/g, ' ');
+          if (wantedRef.current < world.wanted.level) {
+            addToast(`Wanted ★${world.wanted.level}`, `You committed: ${label}.`);
+          } else {
+            addToast('Crime logged', `You committed: ${label}.`);
+          }
+        }
+      }
+      if (world.wanted.level !== wantedRef.current) {
+        wantedRef.current = world.wanted.level;
+        setWantedLevel(world.wanted.level);
+        setGameState(prev => prev ? ({
+          ...prev,
+          flags: {
+            ...prev.flags,
+            max_wanted_level: Math.max((prev.flags.max_wanted_level as number) || 0, world.wanted.level),
+          },
+        }) : prev);
+        if (world.wanted.level === 0) addToast('Lost the cops', 'You are no longer wanted.');
+      }
+
+      // ---- Substance effect burn-off ---------------------------------------
+      const eff = substanceRef.current;
+      if (eff && exteriorNow) {
+        eff.remaining -= dtSec;
+        if (eff.remaining <= 0) {
+          substanceRef.current = null;
+          setSubstance(null);
+          const spec = SUBSTANCES[eff.kind];
+          addToast('Coming down', spec.comeDown);
+        }
+      }
+
+      // ---- Radio chatter: cycles DJ patter across the stations -------------
+      if (radioOn && exteriorNow && !paused) {
+        radioTimerRef.current += dtSec;
+        if (radioTimerRef.current > 9) {
+          radioTimerRef.current = 0;
+          setRadioLine(prev => {
+            const station = RADIO_STATIONS[radioIdx % RADIO_STATIONS.length];
+            const next = prev + 1;
+            if (next >= station.lines.length) {
+              setRadioIdx(i => (i + 1) % RADIO_STATIONS.length);
+              return 0;
+            }
+            return next;
+          });
+        }
+      }
+
       const fighting = gameState.flags.arrow_ghost_fight_started === true &&
         gameState.flags.arrow_ghost_defeated !== true;
 
@@ -546,9 +620,11 @@ export default function App() {
           const victim = world.enemyAt(car.pos, car.size, 46);
           if (victim && Math.abs(carVelRef.current) > 120 && now - enemyHitRef.current > 350) {
             enemyHitRef.current = now;
+            world.addGore(victim.pos.x + victim.size.x / 2, victim.pos.y + victim.size.y / 2, 'smear', 1.2);
             world.damageEnemy(victim.id, 999);
             addToast('Roadkill', `You flattened a ${victim.enemyKind}.`);
             getAudio().hit();
+            setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, did_roadkill: true } }) : prev);
           }
 
           camera.update(player.pos);
@@ -564,11 +640,13 @@ export default function App() {
         renderer.ctx.save();
         camera.apply(renderer.ctx);
         renderer.drawWorld(LOCATIONS, camera, { gates: world.gates, daylight: world.daylight });
+        for (const g of world.gore) drawGore(renderer.ctx, g);
         drawSkids(renderer.ctx);
         WORLD_OBJECTS.forEach(obj => renderer.drawEntity(obj, camera, undefined, dt));
         for (const npc of world.visibleNpcs()) renderer.drawEntity(npc, camera, undefined, dt);
         for (const c of world.cars) if (c !== car) renderer.drawCar(c, camera, now / 1000);
         for (const e of world.enemies) renderer.drawEnemy(e, camera, now / 1000);
+        for (const p of world.police) renderer.drawEnemy(p, camera, now / 1000);
         renderer.drawCar(car, camera, now / 1000);
         renderer.drawEntity(player, camera, undefined, dt);
         drawDust(renderer.ctx);
@@ -579,11 +657,19 @@ export default function App() {
         if (!inDialogue && !paused) {
           if (dt > 0) playtimeRef.current += dt;
           const movement = input.getMovement();
+          // Intoxicants alter movement speed and steadiness.
+          const subSpec = substanceRef.current ? SUBSTANCES[substanceRef.current.kind] : null;
+          const mul = subSpec ? subSpec.speedMul : 1;
+          if (mul !== 1) { movement.x *= mul; movement.y *= mul; }
           const solids = [...WORLD_OBJECTS, ...world.visibleNpcs(), ...world.obstacleSolids()];
           if (input.consumePressed('shift') && player.tryDodge(movement)) getAudio().step();
           player.update(movement, solids, dtSec);
           player.clampToWorld();
           camera.update(player.pos);
+          if (subSpec && subSpec.wobble > 0) {
+            camera.pos.x += Math.sin(now / 180) * subSpec.wobble;
+            camera.pos.y += Math.cos(now / 140) * subSpec.wobble;
+          }
           if (movement.x !== 0 || movement.y !== 0) {
             if (Math.random() < 0.08) getAudio().step();
           }
@@ -593,7 +679,7 @@ export default function App() {
         }
 
         // Interactables: NPCs, world objects, fixtures and hostiles.
-        const interactables: any[] = [...world.visibleNpcs(), ...WORLD_OBJECTS, ...INTERACTIVES, ...world.enemies];
+        const interactables: any[] = [...world.visibleNpcs(), ...WORLD_OBJECTS, ...INTERACTIVES, ...world.enemies, ...world.police];
         for (const obj of interactables) {
           const cx = obj.pos.x + (obj.size?.x ?? 0) / 2;
           const cy = obj.pos.y + (obj.size?.y ?? 0) / 2;
@@ -620,7 +706,7 @@ export default function App() {
           if (nearest.id === 'arrow_ghost' && fighting) {
             setInteractPrompt('Press E to ATTACK');
           } else if (nearest.type === 'enemy') {
-            setInteractPrompt('Press E to attack');
+            setInteractPrompt(nearest.enemyKind === 'police' ? 'Press E to resist arrest' : 'Press E to attack');
           } else if (nearest.interactiveKind === 'chest') {
             setInteractPrompt(nearest.used ? 'Opened' : 'Press E to open chest');
           } else if (nearest.interactiveKind === 'campfire') {
@@ -629,11 +715,15 @@ export default function App() {
             setInteractPrompt(nearest.used ? 'Lever pulled' : 'Press E to pull lever');
           } else if (nearest.interactiveKind === 'merchant') {
             setInteractPrompt(`Press E to trade with ${label}`);
+          } else if (nearest.interactiveKind === 'bordello') {
+            setInteractPrompt('Press E to step inside (fade to black)');
+          } else if (nearest.interactiveKind === 'dumpster') {
+            setInteractPrompt(nearest.used ? 'Searched' : 'Press E to search');
           } else {
             setInteractPrompt(`Press E to interact with ${label}`);
           }
         } else if (carNear) {
-          setInteractPrompt('Press E to drive');
+          setInteractPrompt('Press E to steal this car');
         } else if (door) {
           setInteractPrompt('Press E to enter');
         } else {
@@ -718,6 +808,7 @@ export default function App() {
         }
         camera.apply(renderer.ctx);
         renderer.drawWorld(LOCATIONS, camera, { gates: world.gates, daylight: world.daylight });
+        for (const g of world.gore) drawGore(renderer.ctx, g);
         drawSkids(renderer.ctx);
         WORLD_OBJECTS.forEach(obj => renderer.drawEntity(obj, camera, undefined, dt));
         for (const npc of world.visibleNpcs()) {
@@ -726,13 +817,23 @@ export default function App() {
         }
         for (const c of world.cars) renderer.drawCar(c, camera, now / 1000);
         for (const e of world.enemies) renderer.drawEnemy(e, camera, now / 1000);
+        for (const p of world.police) renderer.drawEnemy(p, camera, now / 1000);
         renderer.drawEntity(player, camera, undefined, dt);
         drawDust(renderer.ctx);
         renderer.drawWorldLights(camera);
         renderer.ctx.restore();
 
-        // Weather paints over the whole viewport in screen space.
+        // Weather and intoxicant tint paint over the viewport in screen space.
         world.weather.draw(renderer.ctx);
+        const subEff = substanceRef.current;
+        if (subEff) {
+          const spec = SUBSTANCES[subEff.kind];
+          renderer.ctx.save();
+          renderer.ctx.globalAlpha = Math.max(0, Math.min(1, subEff.remaining / 2));
+          renderer.ctx.fillStyle = spec.tint;
+          renderer.ctx.fillRect(0, 0, renderer.canvas.width, renderer.canvas.height);
+          renderer.ctx.restore();
+        }
       }
 
       // Speedrun lap timing.
@@ -790,6 +891,12 @@ export default function App() {
       setDrivingName(car.name);
       setInteractPrompt('WASD to drive · E to exit');
       getAudio().interact();
+      // Grand theft auto: commandeering any car is a crime.
+      const w = getWorld();
+      if (!car.id.startsWith('car_stolen')) {
+        w.commitCrime('grand theft auto', 0.22);
+        setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, car_stolen: true } }) : prev);
+      }
     }
 
     /** Leaves the current car, stepping out to the south. */
@@ -1014,6 +1121,51 @@ export default function App() {
         getAudio().blip();
         return;
       }
+      if (kind === 'dumpster') {
+        if (it.used) {
+          setCurrentDialogue({ id: 'dumpster_empty', text: 'Nothing but terrible smells remain.' });
+          setDialogueSpeaker(it.name);
+          return;
+        }
+        it.used = true;
+        // Dumpster diving is petty crime with petty rewards.
+        getWorld().commitCrime('dumpster diving', 0.08);
+        const roll = Math.random();
+        const itemId = roll < 0.4 ? 'stolen_watch' : roll < 0.7 ? 'bootleg_film' : 'energy_drink';
+        const gold = 5 + Math.floor(Math.random() * 20);
+        setGameState(prev => {
+          if (!prev) return null;
+          const inventory = [...prev.player.inventory];
+          if (!inventory.includes(itemId) || itemId === 'energy_drink') inventory.push(itemId);
+          return { ...prev, player: { ...prev.player, inventory, gold: (prev.player.gold || 0) + gold } };
+        });
+        setCurrentDialogue({ id: 'dumpster_loot', text: `You dig through the trash and find ${ITEMS[itemId]?.name || 'junk'} and ${gold} gold.` });
+        setDialogueSpeaker(it.name);
+        addToast('Dumpster looted', `Found ${ITEMS[itemId]?.name || 'junk'} and ${gold} gold.`);
+        getAudio().pickup();
+        return;
+      }
+      if (kind === 'bordello') {
+        setCurrentDialogue({
+          id: 'bordello_fade',
+          text: 'The neon curtain swings shut. Defiantly rude music plays. The screen fades to black for a tasteful, entirely implied amount of time.',
+        });
+        setDialogueSpeaker(it.name);
+        getWorld().commitCrime('public indecency', 0.06);
+        setGameState(prev => {
+          if (!prev) return null;
+          const inventory = [...prev.player.inventory];
+          if (!inventory.includes('feather_token')) inventory.push('feather_token');
+          return {
+            ...prev,
+            player: { ...prev.player, inventory, hp: Math.min(prev.player.maxHp, prev.player.hp + 10) },
+            flags: { ...prev.flags, bordello_visited: true },
+          };
+        });
+        addToast('A night at The Feather', 'Fade to black. You feel inexplicably rested.');
+        getAudio().achievement();
+        return;
+      }
     }
 
     loop();
@@ -1101,6 +1253,26 @@ export default function App() {
       getAudio().blip();
       return;
     }
+    // Fictional intoxicants: apply a timed status effect.
+    const subKind = SUBSTANCE_ITEM[itemId];
+    if (subKind) {
+      const spec = SUBSTANCES[subKind];
+      const effect: SubstanceEffect = { kind: subKind, remaining: spec.duration, total: spec.duration };
+      substanceRef.current = effect;
+      setSubstance(effect);
+      removeInventoryItem(itemId, 1);
+      addToast(spec.name, spec.tagline);
+      getAudio().blip();
+      if (gameState) {
+        const nextHp = Math.max(0, Math.min(gameState.player.maxHp, gameState.player.hp + spec.hpDelta));
+        setGameState(prev => prev ? ({
+          ...prev,
+          player: { ...prev.player, hp: nextHp },
+          flags: { ...prev.flags, used_a_substance: true },
+        }) : prev);
+      }
+      return;
+    }
     if (itemId === 'energy_drink') {
       setGameState(prev => {
         if (!prev) return prev;
@@ -1112,6 +1284,19 @@ export default function App() {
       addToast('Energy Drink', 'Health restored.');
       getAudio().pickup();
     }
+  };
+
+  /** Removes up to `count` copies of an item from the inventory. */
+  const removeInventoryItem = (itemId: string, count = 1) => {
+    setGameState(prev => {
+      if (!prev) return prev;
+      const inventory = [...prev.player.inventory];
+      for (let n = 0; n < count; n++) {
+        const idx = inventory.indexOf(itemId);
+        if (idx >= 0) inventory.splice(idx, 1);
+      }
+      return { ...prev, player: { ...prev.player, inventory } };
+    });
   };
 
   // ---- Shop -----------------------------------------------------------------
@@ -1174,6 +1359,54 @@ export default function App() {
     }
     if (best) setEquippedItemId(best);
   };
+
+  if (advisoryOpen) {
+    const accept = () => {
+      localStorage.setItem(ADVISORY_ACCEPT_KEY, '1');
+      setAdvisoryOpen(false);
+      getAudio().blip();
+    };
+    return (
+      <div className="select-screen advisory-screen">
+        <div className="advisory-card">
+          <div className="advisory-rating">{CONTENT_ADVISORY.rating}</div>
+          <p className="advisory-summary">{CONTENT_ADVISORY.summary}</p>
+          <div className="advisory-descriptors">
+            {CONTENT_ADVISORY.descriptors.map(d => (
+              <div key={d.tag} className="advisory-item">
+                <span className="advisory-label">{d.label}</span>
+                <span className="advisory-blurb">{d.blurb}</span>
+              </div>
+            ))}
+          </div>
+          <div className="advisory-options">
+            <label className="advisory-toggle">
+              <input
+                type="checkbox"
+                checked={strongLanguage}
+                onChange={(e) => setStrongLanguage(e.target.checked)}
+              />
+              Allow strong language (un-bleep dialogue)
+            </label>
+            <label className="advisory-toggle">
+              <input
+                type="checkbox"
+                checked={radioOn}
+                onChange={(e) => setRadioOn(e.target.checked)}
+              />
+              Enable in-world radio
+            </label>
+          </div>
+          <button className="pause-button cyan" style={{ width: 'auto', padding: '14px 48px', fontSize: 20 }} onClick={accept}>
+            I am 17 or older — Enter
+          </button>
+          <p className="advisory-footnote">
+            Satire only. Every brand, substance and product shown is invented for the joke.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (ending) {
     const stats = gameState!;
@@ -1312,7 +1545,29 @@ export default function App() {
         </div>
       )}
 
+      {wantedLevel > 0 && (
+        <div className="wanted-stars" title="Wanted level">
+          {[0, 1, 2, 3, 4].map(i => (
+            <span key={i} className={i < wantedLevel ? 'star on' : 'star'}>★</span>
+          ))}
+        </div>
+      )}
+
+      {substance && (
+        <div className="substance-hud">
+          <span className="substance-name">{SUBSTANCES[substance.kind].name}</span>
+          <div className="substance-bar"><div style={{ width: `${(substance.remaining / substance.total) * 100}%` }} /></div>
+        </div>
+      )}
+
       {interactPrompt && <div className="interact-prompt">{interactPrompt}</div>}
+
+      {radioOn && !insideName && RADIO_STATIONS[radioIdx % RADIO_STATIONS.length] && (
+        <div className="radio-ticker">
+          <span className="radio-dial">{RADIO_STATIONS[radioIdx % RADIO_STATIONS.length].name}</span>
+          <span>{RADIO_STATIONS[radioIdx % RADIO_STATIONS.length].lines[radioLine % RADIO_STATIONS[radioIdx % RADIO_STATIONS.length].lines.length]}</span>
+        </div>
+      )}
 
       {currentDialogue && (
         <div className="dialogue-box">
@@ -1342,7 +1597,7 @@ export default function App() {
           />
           <div className="dialogue-content">
             <div className="character-name text-neon-cyan">{dialogueSpeaker}</div>
-            <div className="dialogue-text">{currentDialogue.text}</div>
+            <div className="dialogue-text">{applyLanguageFilter(currentDialogue.text, strongLanguage)}</div>
             <div className="mt-4 flex gap-4 flex-wrap">
               {currentDialogue.options ? (
                 currentDialogue.options
@@ -1354,7 +1609,7 @@ export default function App() {
                       onClick={() => handleDialogueOption(opt.nextNodeId)}
                     >
                       {mode === 'keyboard' && <span className="option-key">{i + 1}</span>}
-                      {opt.text}
+                      {applyLanguageFilter(opt.text, strongLanguage)}
                     </button>
                   ))
               ) : (
@@ -1518,6 +1773,18 @@ export default function App() {
             onClick={() => { const a = getAudio(); a.setMuted(true); addToast('Audio', 'Muted.'); }}
           >
             Mute Audio
+          </button>
+          <button
+            className="pause-button purple"
+            onClick={() => setStrongLanguage(v => !v)}
+          >
+            Strong Language: {strongLanguage ? 'On' : 'Bleeped'}
+          </button>
+          <button
+            className="pause-button purple"
+            onClick={() => setRadioOn(v => !v)}
+          >
+            Radio: {radioOn ? 'On' : 'Off'}
           </button>
         </div>
       )}

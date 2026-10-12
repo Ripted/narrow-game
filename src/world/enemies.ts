@@ -13,7 +13,22 @@ export const ENEMY_SPECS: Record<EnemyKind, EnemySpec> = {
   stalker: { size: { x: 34, y: 38 }, color: '#c03a5a', hp: 24, damage: 7, speed: 78 },
   brute: { size: { x: 46, y: 48 }, color: '#8a4a20', hp: 60, damage: 14, speed: 52 },
   drone: { size: { x: 30, y: 30 }, color: '#39d0d8', hp: 16, damage: 5, speed: 104 },
+  police: { size: { x: 40, y: 42 }, color: '#2b4a8a', hp: 40, damage: 9, speed: 92 },
 };
+
+/** Stats used when the wanted system spawns a police unit. */
+export const POLICE_SPEC = ENEMY_SPECS.police;
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
 
 const SPAWNS: { kind: EnemyKind; x: number; y: number }[] = [
   { kind: 'stalker', x: 2400, y: 2100 },
@@ -68,7 +83,28 @@ export function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy, time: number)
   const bx = cx;
   const by = cy + bob;
 
-  if (e.enemyKind === 'drone') {
+  if (e.enemyKind === 'police') {
+    // Police cruiser: dark blue body, flashing light bar, star badge.
+    ctx.fillStyle = '#14161c';
+    ctx.fillRect(bx - w * 0.5, by + h * 0.28, w, h * 0.16);
+    ctx.fillStyle = shade(e.color, 0.1);
+    roundRect(ctx, bx - w * 0.5, by - h * 0.42, w, h * 0.8, 5);
+    ctx.fill();
+    ctx.strokeStyle = shade(e.color, -0.4);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = withAlpha('#bfe8ff', 0.35);
+    ctx.fillRect(bx - w * 0.34, by - h * 0.32, w * 0.28, h * 0.64);
+    const flash = Math.sin(time * 12) > 0;
+    ctx.fillStyle = flash ? '#ff3030' : '#3050ff';
+    ctx.fillRect(bx - w * 0.16, by - h * 0.5, w * 0.32, h * 0.12);
+    ctx.fillStyle = flash ? '#3050ff' : '#ff3030';
+    ctx.fillRect(bx - w * 0.16, by - h * 0.36, w * 0.32, h * 0.1);
+    ctx.fillStyle = '#ffd070';
+    ctx.beginPath();
+    ctx.arc(bx + w * 0.28, by, 3.4, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (e.enemyKind === 'drone') {
     // Four-rotor quadcopter.
     ctx.fillStyle = shade(e.color, -0.3);
     ctx.beginPath();
@@ -149,6 +185,36 @@ export function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy, time: number)
     ctx.fillRect(cx - bw / 2, e.pos.y - 12, bw, 5);
     ctx.fillStyle = '#ff4040';
     ctx.fillRect(cx - bw / 2, e.pos.y - 12, bw * (e.hp / e.maxHp), 5);
+  }
+  ctx.restore();
+}
+
+/** Draws a stylised blood decal in world space. Abstract, never realistic. */
+export function drawGore(ctx: CanvasRenderingContext2D, g: { x: number; y: number; size: number; style: string }) {
+  const s = g.size;
+  if (g.style === 'smear') {
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#6a0d12';
+    ctx.beginPath();
+    ctx.ellipse(g.x, g.y, 26 * s, 7 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = '#70120f';
+  ctx.beginPath();
+  ctx.ellipse(g.x, g.y, 9 * s, 7 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#5a0d0b';
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + s;
+    const r = 10 * s + (i % 3) * 3 * s;
+    ctx.beginPath();
+    ctx.arc(g.x + Math.cos(a) * r, g.y + Math.sin(a) * r, 1.6 * s, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
 }
