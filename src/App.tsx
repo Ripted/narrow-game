@@ -8,6 +8,7 @@ import { NPCS } from './data/npcs';
 import { APPEARANCES } from './data/appearances';
 import { WORLD_OBJECTS } from './world/objects';
 import { ROADS, PROPS } from './world/props';
+import { BUILDINGS } from './world/buildings';
 import { LOCATIONS, LOCATION_MINIMAP_COLORS } from './data/locations';
 import { DIALOGUE } from './data/characters';
 import { ITEMS, STARTING_ITEM } from './data/items';
@@ -256,6 +257,13 @@ export default function App() {
       ctx.fillStyle = 'rgba(150,200,150,0.28)';
       PROPS.forEach(p => {
         ctx.fillRect((p.pos.x + p.size.x / 2) * sx - 0.5, (p.pos.y + p.size.y / 2) * sy - 0.5, 1, 1);
+      });
+      // Buildings (solid blocks with a roof accent).
+      BUILDINGS.forEach(b => {
+        ctx.fillStyle = 'rgba(210,200,180,0.55)';
+        ctx.fillRect(b.pos.x * sx, b.pos.y * sy, Math.max(1.5, b.size.x * sx), Math.max(1.5, b.size.y * sy));
+        ctx.fillStyle = b.roofColor;
+        ctx.fillRect(b.pos.x * sx, b.pos.y * sy, Math.max(1, b.size.x * sx), Math.max(1, b.size.y * sy * 0.4));
       });
       // NPC markers
       ctx.fillStyle = 'rgba(255,255,255,0.55)';

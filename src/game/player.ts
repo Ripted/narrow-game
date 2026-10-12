@@ -1,6 +1,7 @@
 import { Appearance, Entity, Vector2 } from '../types';
 import { CollisionSystem } from '../engine/collision';
 import { WORLD_OBJECTS } from '../world/objects';
+import { BUILDINGS } from '../world/buildings';
 import { NPCS } from '../data/npcs';
 
 export class Player implements Entity {
@@ -21,7 +22,7 @@ export class Player implements Entity {
   }
 
   private solid(): any[] {
-    return [...WORLD_OBJECTS, ...NPCS];
+    return [...WORLD_OBJECTS, ...NPCS, ...BUILDINGS];
   }
 
   update(movement: Vector2) {

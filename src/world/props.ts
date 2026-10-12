@@ -2,30 +2,11 @@ import { Prop, PropKind } from '../types';
 import { LOCATIONS } from '../data/locations';
 import { NPCS } from '../data/npcs';
 import { WORLD_OBJECTS } from './objects';
+import { ROADS, onRoad } from './roads';
+import { BUILDINGS } from './buildings';
 
+export { ROADS, onRoad } from './roads';
 export const PROP_COLLISION_EXEMPT = true; // props are scenery only; never solid
-
-/** A road segment drawn on top of the terrain, in world coordinates. */
-export interface Road {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  /** Path colour. */
-  color: string;
-}
-
-/**
- * Roads form a rough grid along the seams between the themed zones, so the world
- * reads as connected instead of as a grid of unlinked rooms.
- */
-export const ROADS: Road[] = [
-  { x: 0, y: 960, w: 3400, h: 90, color: '#4a4438' },
-  { x: 0, y: 1760, w: 3400, h: 90, color: '#4a4438' },
-  { x: 760, y: 0, w: 90, h: 2400, color: '#443f34' },
-  { x: 1970, y: 0, w: 90, h: 2400, color: '#443f34' },
-  { x: 2760, y: 0, w: 90, h: 2400, color: '#443f34' },
-];
 
 interface ZoneTheme {
   kinds: PropKind[];
@@ -126,17 +107,21 @@ function rng(seed: number) {
   };
 }
 
-/** True when a point sits on any road, so props keep the paths clear. */
-function onRoad(x: number, y: number): boolean {
-  return ROADS.some((r) => x > r.x - 24 && x < r.x + r.w + 24 && y > r.y - 24 && y < r.y + r.h + 24);
-}
-
+/** True when a point collides with a character, an object or a building. */
 function blocked(cx: number, cy: number): boolean {
   if (Math.hypot(cx - 100, cy - 100) < 150) return true;
   for (const e of [...NPCS, ...WORLD_OBJECTS]) {
     const ex = e.pos.x + e.size.x / 2;
     const ey = e.pos.y + e.size.y / 2;
     if (Math.hypot(cx - ex, cy - ey) < 80) return true;
+  }
+  // Keep scenery out of building footprints and away from their facades.
+  for (const b of BUILDINGS) {
+    const bx = b.pos.x - 16;
+    const by = b.pos.y - b.wallHeight - 20;
+    const bw = b.size.x + 32;
+    const bh = b.size.y + b.wallHeight + 40;
+    if (cx > bx && cx < bx + bw && cy > by && cy < by + bh) return true;
   }
   return false;
 }
