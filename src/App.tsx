@@ -97,12 +97,15 @@ export default function App() {
   const [speedrun, setSpeedrun] = useState<{ active: boolean; elapsed: number; best: number | null }>(
     { active: false, elapsed: 0, best: null }
   );
-  const [showTouch, setShowTouch] = useState(false);
+  const [inputMode, setInputMode] = useState<'keyboard' | 'touch'>('keyboard');
   const [saveSlots, setSaveSlots] = useState(() => StateManager.slots());
 
   const audioRef = useRef<AudioManager | null>(null);
   const playtimeRef = useRef(0);
   const lastAutosaveRef = useRef(0);
+  // Latest dialogue for the animation loop, avoiding a loop restart per node.
+  const dialogueRef = useRef<DialogueNode | null>(null);
+  dialogueRef.current = currentDialogue;
   const lastZoneRef = useRef<string>('');
   const speedrunStartRef = useRef<number | null>(null);
   const bossHitCooldownRef = useRef(0);
@@ -182,14 +185,6 @@ export default function App() {
     }
   }, [gameState, addToast, getAudio]);
 
-  // Detect touch devices so the on-screen controls are available.
-  useEffect(() => {
-    const coarse = typeof window !== 'undefined' && (
-      'ontouchstart' in window || window.matchMedia('(pointer: coarse)').matches
-    );
-    setShowTouch(coarse);
-  }, []);
-
   // Playtime clock: commit accumulated time to state once per second.
   useEffect(() => {
     if (!gameState || ending) return;
@@ -220,6 +215,10 @@ export default function App() {
     }
 
     const { renderer, input, camera, player } = engineRef.current;
+
+    // Mirror the engine's live input mode (it sees every key and touch).
+    const unsubscribeMode = input.onModeChange(setInputMode);
+    setInputMode(input.getMode());
 
     const onResize = () => {
       renderer.resize();
@@ -269,7 +268,8 @@ export default function App() {
       lastFrame = now;
 
       const paused = isPaused || !!ending;
-      if (!currentDialogue && !paused) {
+      const inDialogue = !!dialogueRef.current;
+      if (!inDialogue && !paused) {
         if (dt > 0) playtimeRef.current += dt;
         const movement = input.getMovement();
         player.update(movement);
@@ -318,7 +318,7 @@ export default function App() {
         setInteractPrompt(null);
       }
 
-      if (wantInteract && !currentDialogue) {
+      if (wantInteract && !dialogueRef.current) {
         // Combat branch: strike the boss when the fight has begun.
         if (fighting && nearest && nearest.id === 'arrow_ghost') {
           strikeBoss();
@@ -508,8 +508,9 @@ export default function App() {
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', onResize);
+      unsubscribeMode();
     };
-  }, [gameState?.player.characterType, currentDialogue, isPaused, ending, equippedItemId, combat?.hp]);
+  }, [gameState?.player.characterType, isPaused, ending, equippedItemId, combat?.hp]);
 
   const handleDialogueOption = (nextNodeId: string) => {
     const dialogueSet = DIALOGUE[
@@ -534,6 +535,34 @@ export default function App() {
     setCurrentDialogue(null);
     setDialogueSpeaker(null);
   };
+
+  // Stable handler for the animation loop's 1/2/E key reads.
+  const dialogueOptionRef = useRef(handleDialogueOption);
+  dialogueOptionRef.current = handleDialogueOption;
+
+  // Keyboard dialogue control: number keys pick an option, E/Enter/Space close.
+  useEffect(() => {
+    if (!currentDialogue) return;
+    const onKey = (e: KeyboardEvent) => {
+      const options = currentDialogue.options?.filter(o => !o.condition || !gameState || o.condition(gameState));
+      const key = e.key.toLowerCase();
+      if (options && options.length > 0) {
+        const idx = /^[1-9]$/.test(key) ? Number(key) - 1 : -1;
+        if (idx >= 0 && idx < options.length) {
+          e.preventDefault();
+          dialogueOptionRef.current(options[idx].nextNodeId);
+        }
+      } else if (key === 'e' || key === 'enter' || key === ' ' || key === 'escape') {
+        e.preventDefault();
+        // Consume the key so the game loop doesn't immediately re-interact.
+        dialogueOptionRef.current('');
+        engineRef.current?.input.consumePressed('e');
+        engineRef.current?.input.consumePressed('escape');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [currentDialogue, gameState]);
 
   const useItem = (itemId: string) => {
     const item = ITEMS[itemId];
@@ -582,10 +611,10 @@ export default function App() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return (
-      <div className="character-select">
-        <h1 className="text-5xl font-bold mb-4 text-neon-orange uppercase tracking-widest">Game Over</h1>
-        <h2 className="text-2xl text-neon-cyan mb-3">{ending.title}</h2>
-        <p className="text-gray-400 max-w-lg text-center mb-8">{ending.description}</p>
+      <div className="select-screen">
+        <h1 className="select-title" style={{ color: 'var(--color-neon-orange)' }}>Game Over</h1>
+        <h2 className="text-2xl text-neon-cyan">{ending.title}</h2>
+        <p className="text-gray-400 max-w-lg text-center">{ending.description}</p>
         <div className="ending-stats">
           <div>Character: {stats.player.name}</div>
           <div>Playtime: {mins}m {secs}s</div>
@@ -594,7 +623,8 @@ export default function App() {
           <div>Quests completed: {stats.completedQuests.length}</div>
         </div>
         <button
-          className="mt-8 px-12 py-4 border-2 border-neon-cyan text-neon-cyan hover:bg-neon-cyan hover:text-black transition-all text-2xl"
+          className="pause-button cyan"
+          style={{ width: 'auto', padding: '14px 48px', fontSize: 20 }}
           onClick={() => window.location.reload()}
         >
           Play Again
@@ -607,10 +637,10 @@ export default function App() {
     const slots = saveSlots;
     const hasSave = StateManager.hasAnySave();
     return (
-      <div className="character-select">
-        <h1 className="text-4xl font-bold mb-4 text-neon-cyan uppercase tracking-widest">Narrow Arrow: The Game</h1>
-        <p className="mb-6 text-gray-400">Select your character</p>
-        <div className="flex flex-wrap justify-center max-w-4xl">
+      <div className="select-screen">
+        <h1 className="select-title">Narrow Arrow: The Game</h1>
+        <p className="select-sub">Select your character</p>
+        <div className="char-grid">
           {CHARACTERS.map(char => (
             <div key={char.id} className="char-card">
               <button
@@ -638,7 +668,7 @@ export default function App() {
           ))}
         </div>
         {hasSave && (
-          <div className="save-slots mt-8">
+          <div className="save-slots">
             <div className="text-neon-gold mb-2 uppercase tracking-widest text-sm">Continue</div>
             <div className="flex flex-wrap justify-center gap-3">
               {StateManager.loadAutosave() && (
@@ -666,20 +696,29 @@ export default function App() {
     );
   }
 
+  const mode = inputMode === 'touch' ? 'touch' : 'keyboard';
+
   return (
-    <div className="relative w-full h-full">
-      <canvas ref={canvasRef} className="block w-full h-full" />
+    <div className={`game-shell mode-${mode}`}>
+      <canvas ref={canvasRef} className="game-canvas" />
 
       <div className="mini-map-label text-neon-cyan">{currentArea}</div>
-      <canvas ref={minimapRef} className="minimap" width={170} height={120} />
+      <canvas ref={minimapRef} className="minimap" width={180} height={130} />
 
       <div className="hud-stats">
-        <div>HP {Math.round((gameState.player.hp / gameState.player.maxHp) * 100)}%</div>
+        <div className="hud-title">Status</div>
+        <div className="hud-row">
+          <span>HP</span>
+          <span>{Math.round((gameState.player.hp / gameState.player.maxHp) * 100)}%</span>
+        </div>
         <div className="hud-hp-bar">
           <div style={{ width: `${(gameState.player.hp / gameState.player.maxHp) * 100}%` }} />
         </div>
         {equippedItemId && ITEMS[equippedItemId] && (
-          <div>Wpn: {ITEMS[equippedItemId].name}</div>
+          <div className="hud-row" style={{ marginTop: 4 }}>
+            <span style={{ color: '#8b96a3' }}>Weapon</span>
+            <span style={{ color: ITEMS[equippedItemId].color }}>{ITEMS[equippedItemId].name}</span>
+          </div>
         )}
       </div>
 
@@ -737,15 +776,16 @@ export default function App() {
                   .map((opt, i) => (
                     <button
                       key={i}
-                      className="px-4 py-2 border border-neon-orange hover:bg-neon-orange hover:text-black transition-colors"
+                      className="dialogue-option"
                       onClick={() => handleDialogueOption(opt.nextNodeId)}
                     >
+                      {mode === 'keyboard' && <span className="option-key">{i + 1}</span>}
                       {opt.text}
                     </button>
                   ))
               ) : (
                 <button
-                  className="px-4 py-2 border border-neon-cyan hover:bg-neon-cyan hover:text-black transition-colors"
+                  className="dialogue-option close"
                   onClick={() => handleDialogueOption('')}
                 >
                   Close
@@ -815,7 +855,7 @@ export default function App() {
         ))}
       </div>
 
-      {showTouch && (
+      {mode === 'touch' && !currentDialogue && !isPaused && (
         <div className="touch-controls">
           <div
             className="joystick"
@@ -883,9 +923,31 @@ export default function App() {
         </div>
       )}
 
-      <div className="controls-hint">
-        WASD move · E interact · Q quests · I inventory · ESC pause
-      </div>
+      {mode === 'keyboard' && (
+        <div className="controls-hint">
+          WASD move · E interact · Q quests · I inventory · ESC pause
+        </div>
+      )}
+
+      {mode === 'keyboard' && currentDialogue && (
+        <div className="key-hint">
+          {currentDialogue.options ? (
+            <>
+              <span className="key-cap">1</span>
+              <span className="key-cap">2</span>
+              <span>choose an option</span>
+            </>
+          ) : (
+            <>
+              <span className="key-cap">E</span>
+              <span>or</span>
+              <span className="key-cap">ESC</span>
+              <span>close</span>
+            </>
+          )}
+        </div>
+      )}
+
       <span className="hidden-tick" data-tick={hudTick} />
     </div>
   );
