@@ -31,8 +31,50 @@ export interface Entity {
   pos: Vector2;
   size: Vector2;
   color: Color;
-  type: 'player' | 'npc' | 'object';
+  type: 'player' | 'npc' | 'object' | 'prop';
   appearance?: Appearance;
+  /** Selects the decorative vector art used for object/prop entities. */
+  propKind?: PropKind;
+}
+
+/**
+ * Visual style for a non-character entity. `crate` is a neutral fallback;
+ * everything else has hand-tuned canvas art in the sprite system.
+ */
+export type PropKind =
+  | 'tree'
+  | 'pine'
+  | 'bush'
+  | 'flower'
+  | 'rock'
+  | 'grass'
+  | 'crate'
+  | 'barrel'
+  | 'lamp'
+  | 'fence'
+  | 'neon'
+  | 'terminal'
+  | 'server'
+  | 'console'
+  | 'portal'
+  | 'book'
+  | 'skull'
+  | 'statue'
+  | 'column'
+  | 'monitor'
+  | 'clock'
+  | 'board'
+  | 'banner'
+  | 'sign'
+  | 'shrine'
+  | 'baguette'
+  | 'plaque'
+  | 'crystal';
+
+/** A purely decorative world entity; never interactive, never solid. */
+export interface Prop extends Entity {
+  type: 'prop';
+  propKind: PropKind;
 }
 
 export interface NPC extends Entity {
