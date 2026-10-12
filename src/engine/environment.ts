@@ -1,8 +1,10 @@
 import { LOCATIONS } from '../data/locations';
 import { PROPS, ROADS } from '../world/props';
+import { BUILDINGS } from '../world/buildings';
 import { Prop } from '../types';
 import { drawProp, propShadow, propEmissive } from '../world/propArt';
-import { hash01, shade, withAlpha } from './color';
+import { drawBuilding, buildingEmissive } from '../world/buildingArt';
+import { hash01, shade, withAlpha, mix } from './color';
 
 export interface EnvView {
   x: number;
@@ -101,10 +103,13 @@ export class EnvironmentRenderer {
       const b = loc.bounds;
       if (!this.visible(b.x, b.y, b.width, b.height, view)) continue;
 
-      // Base wash — a vertical gradient of the zone colour.
+      // Base wash — the zone colour desaturated toward a neutral ground tone, so
+      // scenery and buildings read clearly and the areas feel like places rather
+      // than flat paint fills.
+      const ground = mix(loc.color, '#1b1c22', 0.42);
       const g = ctx.createLinearGradient(0, b.y, 0, b.y + b.height);
-      g.addColorStop(0, shade(loc.color, 0.12));
-      g.addColorStop(1, shade(loc.color, -0.12));
+      g.addColorStop(0, shade(ground, 0.1));
+      g.addColorStop(1, shade(ground, -0.12));
       ctx.fillStyle = g;
       ctx.fillRect(b.x, b.y, b.width, b.height);
 
@@ -118,7 +123,7 @@ export class EnvironmentRenderer {
         const px = b.x + hash01(loc.id + i, 5) * b.width;
         const py = b.y + hash01(loc.id + i, 6) * b.height;
         const r = 14 + hash01(loc.id + i, 7) * 46;
-        ctx.fillStyle = withAlpha(i % 2 ? shade(loc.color, 0.22) : shade(loc.color, -0.25), 0.16);
+        ctx.fillStyle = withAlpha(i % 2 ? shade(ground, 0.3) : shade(ground, -0.3), 0.13);
         ctx.beginPath();
         ctx.ellipse(px, py, r, r * 0.7, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -212,19 +217,28 @@ export class EnvironmentRenderer {
   }
 
   private drawProps(ctx: CanvasRenderingContext2D, view: EnvView) {
-    // Isometric-ish sort: back-to-front, then left-to-right.
-    const visible = PROPS.filter((p) =>
-      this.visible(p.pos.x - 6, p.pos.y - p.size.y * 1.8, p.size.x + 12, p.size.y * 2.4, view)
-    );
-    visible.sort((a, b) => (a.pos.y + a.size.y) - (b.pos.y + b.size.y) || a.pos.x - b.pos.x);
-    for (const p of visible) this.drawPropEntity(ctx, p);
-  }
+    // Ground props and buildings are sorted together back-to-front so a building
+    // correctly occludes props standing behind it. Keyed by footprint bottom, so
+    // a building's tall facade still draws over the prop behind it.
+    type Item = { key: number; x: number; draw: () => void };
+    const items: Item[] = [];
 
-  private drawPropEntity(ctx: CanvasRenderingContext2D, p: Prop) {
-    const cx = p.pos.x + p.size.x / 2;
-    const baseY = p.pos.y + p.size.y;
-    propShadow(ctx, cx, baseY, p.size.x, p.size.y);
-    drawProp(ctx, p.propKind, cx, baseY, p.size.x, p.size.y, p.color, p.id);
+    for (const p of PROPS) {
+      if (!this.visible(p.pos.x - 6, p.pos.y - p.size.y * 1.8, p.size.x + 12, p.size.y * 2.4, view)) continue;
+      const cx = p.pos.x + p.size.x / 2;
+      const baseY = p.pos.y + p.size.y;
+      items.push({ key: baseY, x: p.pos.x, draw: () => { propShadow(ctx, cx, baseY, p.size.x, p.size.y); drawProp(ctx, p.propKind, cx, baseY, p.size.x, p.size.y, p.color, p.id); } });
+    }
+
+    for (const b of BUILDINGS) {
+      const top = b.pos.y - b.wallHeight - 30;
+      const bot = b.pos.y + b.size.y + 12;
+      if (!this.visible(b.pos.x - 12, top, b.size.x + 24, bot - top, view)) continue;
+      items.push({ key: b.pos.y + b.size.y, x: b.pos.x, draw: () => drawBuilding(ctx, b) });
+    }
+
+    items.sort((a, b) => a.key - b.key || a.x - b.x);
+    for (const it of items) it.draw();
   }
 
   /**
@@ -262,6 +276,12 @@ export class EnvironmentRenderer {
       const baseY = p.pos.y + p.size.y;
       if (!this.visible(cx - 120, baseY - 200, 240, 260, view)) continue;
       propEmissive(ctx, p.propKind, cx, baseY, p.size.x, p.size.y, p.color, p.id);
+    }
+    for (const b of BUILDINGS) {
+      const top = b.pos.y - b.wallHeight - 40;
+      const bot = b.pos.y + b.size.y;
+      if (!this.visible(b.pos.x - 40, top, b.size.x + 80, bot - top, view)) continue;
+      buildingEmissive(ctx, b);
     }
   }
 

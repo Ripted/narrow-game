@@ -31,7 +31,7 @@ export interface Entity {
   pos: Vector2;
   size: Vector2;
   color: Color;
-  type: 'player' | 'npc' | 'object' | 'prop';
+  type: 'player' | 'npc' | 'object' | 'prop' | 'building';
   appearance?: Appearance;
   /** Selects the decorative vector art used for object/prop entities. */
   propKind?: PropKind;
@@ -76,6 +76,44 @@ export interface Prop extends Entity {
   type: 'prop';
   propKind: PropKind;
 }
+
+/**
+ * A structure in the world. Buildings are solid (the player collides with their
+ * footprint) and are drawn with a top-down roof plus a raised, extruded facade
+ * so they read as three-dimensional.
+ */
+export type BuildingKind =
+  | 'house'
+  | 'cafe'
+  | 'tower'
+  | 'hall'
+  | 'bunker'
+  | 'warehouse'
+  | 'shrine'
+  | 'hut'
+  | 'ruin';
+
+export interface Building extends Entity {
+  type: 'building';
+  buildingKind: BuildingKind;
+  /** Facade height in pixels, added above the footprint when drawn. */
+  wallHeight: number;
+  /** Roof/accent colour; `color` is the wall colour. */
+  roofColor: string;
+}
+
+/** Human-readable kind, used for interaction prompts and minimap tooltips. */
+export const BUILDING_LABELS: Record<BuildingKind, string> = {
+  house: 'House',
+  cafe: 'Café',
+  tower: 'Tower',
+  hall: 'Hall',
+  bunker: 'Bunker',
+  warehouse: 'Warehouse',
+  shrine: 'Shrine',
+  hut: 'Hut',
+  ruin: 'Ruin',
+};
 
 export interface NPC extends Entity {
   dialogueId: string;
