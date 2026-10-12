@@ -55,20 +55,16 @@ export default function App() {
   const startGame = (charId: string) => {
     const char = CHARACTERS.find(c => c.id === charId)!;
     const name = charId === 'custom' ? (customName || 'Newcomer') : char.name;
-    
-    const player = new Player(name, char.color, { x: 100, y: 100 });
-    const canvas = canvasRef.current!;
-    const renderer = new Renderer(canvas);
-    const input = new InputHandler();
-    const camera = new Camera(canvas.width, canvas.height);
 
-    engineRef.current = { renderer, input, camera, player };
-    
+    // The canvas only exists in the gameplay view, so the engine is created
+    // lazily in the effect below, after the canvas has mounted.
+    engineRef.current = null;
+
     setGameState({
       player: {
         name,
         characterType: charId,
-        pos: player.pos,
+        pos: { x: 100, y: 100 },
         inventory: []
       },
       flags: {},
@@ -78,7 +74,19 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!gameState || !engineRef.current) return;
+    if (!gameState || !canvasRef.current) return;
+
+    if (!engineRef.current) {
+      const char = CHARACTERS.find(c => c.id === gameState.player.characterType) || CHARACTERS[0];
+      const player = new Player(gameState.player.name, char.color, gameState.player.pos);
+      const canvas = canvasRef.current;
+      engineRef.current = {
+        renderer: new Renderer(canvas),
+        input: new InputHandler(),
+        camera: new Camera(canvas.width, canvas.height),
+        player,
+      };
+    }
 
     let animationFrameId: number;
     const { renderer, input, camera, player } = engineRef.current;
@@ -265,17 +273,10 @@ export default function App() {
             onClick={() => {
               const saved = StateManager.load();
               if (saved) {
+                // The engine is re-created lazily from saved state once the
+                // gameplay canvas mounts.
+                engineRef.current = null;
                 setGameState(saved);
-                // We need to re-init the engine with saved data
-                setTimeout(() => {
-                  const char = CHARACTERS.find(c => c.id === saved.player.characterType)!;
-                  const player = new Player(saved.player.name, char.color, saved.player.pos);
-                  const canvas = canvasRef.current!;
-                  const renderer = new Renderer(canvas);
-                  const input = new InputHandler();
-                  const camera = new Camera(canvas.width, canvas.height);
-                  engineRef.current = { renderer, input, camera, player };
-                }, 0);
               }
             }}
           >
