@@ -119,7 +119,9 @@ export const NPCS: NPC[] = [
     color: '#ffffff', // White
     type: 'npc',
     dialogueId: 'arrow_ghost_main',
-    homeLocation: 'narrow_list_hq'
+    homeLocation: 'narrow_list_hq',
+    boss: true,
+    hp: 60
   },
   {
     id: 'polar',

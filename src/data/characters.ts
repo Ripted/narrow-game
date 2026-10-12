@@ -25,7 +25,12 @@ export const DIALOGUE: Record<string, DialogueNode[]> = {
       text: 'bro i should be #1. ripted is just lucky.',
       options: [
         { text: 'You are #2 though.', nextNodeId: 'champy_2' },
-        { text: 'Who is arrow_ghost?', nextNodeId: 'champy_3' }
+        { text: 'Who is arrow_ghost?', nextNodeId: 'champy_3' },
+        {
+          text: 'You ARE arrow_ghost, Champy.',
+          nextNodeId: 'champy_confront',
+          condition: (state) => state.flags.read_kiwi_apology === true
+        }
       ]
     },
     {
@@ -35,6 +40,23 @@ export const DIALOGUE: Record<string, DialogueNode[]> = {
     {
       id: 'champy_3',
       text: 'some hacker ngl. i could beat him easily if i tried.'
+    },
+    {
+      id: 'champy_confront',
+      text: '...what? no. NO. you have no proof.',
+      options: [
+        { text: 'The crying sprite gave it away.', nextNodeId: 'champy_confess' }
+      ]
+    },
+    {
+      id: 'champy_confess',
+      text: 'fine. i wanted #1 so bad i made a second account. i am arrow_ghost. i am sorry.',
+      onComplete: (state) => {
+        state.flags.champy_exposed = true;
+        state.flags.all_arcs_resolved = true;
+        state.flags.game_ended = true;
+        state.flags.champy_redeemed = true;
+      }
     }
   ],
   sam_main: [
@@ -55,12 +77,26 @@ export const DIALOGUE: Record<string, DialogueNode[]> = {
       id: 'kiwi_1',
       text: 'COME TO POLAND OR ELSE.',
       options: [
-        { text: 'Relax, Kiwi.', nextNodeId: 'kiwi_2' }
+        { text: 'Relax, Kiwi.', nextNodeId: 'kiwi_2' },
+        {
+          text: 'I will help you take over the server.',
+          nextNodeId: 'kiwi_takeover',
+          condition: (state) => state.flags.visited_dev_room === true
+        }
       ]
     },
     {
       id: 'kiwi_2',
       text: 'L. i am the paprika king. my apology is on the board.'
+    },
+    {
+      id: 'kiwi_takeover',
+      text: 'FINALLY. a real one. poland rises tonight. the list is MINE.',
+      onComplete: (state) => {
+        state.flags.kiwi_took_over = true;
+        state.flags.all_arcs_resolved = true;
+        state.flags.game_ended = true;
+      }
     }
   ],
   rimai_main: [
@@ -116,12 +152,17 @@ export const DIALOGUE: Record<string, DialogueNode[]> = {
       id: 'hydo_1',
       text: 'welcome to the game. i am hydo. i am mid but i know the basics.',
       options: [
-        { text: 'How do I move?', nextNodeId: 'hydo_2' }
+        { text: 'How do I move?', nextNodeId: 'hydo_2' },
+        { text: 'Tell me about this world.', nextNodeId: 'hydo_3' }
       ]
     },
     {
       id: 'hydo_2',
-      text: 'WASD to move. E to talk. dont be an L.'
+      text: 'WASD to move. E to talk. Q for quests. I for inventory. dont be an L.'
+    },
+    {
+      id: 'hydo_3',
+      text: 'ten zones. everyone argues. arrow_ghost haunts the leaderboard. classic stuff.'
     }
   ],
   arrow_ghost_main: [
@@ -129,15 +170,19 @@ export const DIALOGUE: Record<string, DialogueNode[]> = {
       id: 'arrow_ghost_1',
       text: 'i am inevitable',
       options: [
-        { text: 'Who are you?', nextNodeId: 'arrow_ghost_2' }
+        { text: 'Who are you?', nextNodeId: 'arrow_ghost_2' },
+        { text: 'Fight me.', nextNodeId: 'arrow_ghost_fight' }
       ]
     },
     {
       id: 'arrow_ghost_2',
-      text: 'i am the end of the game. or the beginning.',
+      text: 'i am the end of the game. or the beginning.'
+    },
+    {
+      id: 'arrow_ghost_fight',
+      text: 'finally. press E when close to strike. good luck.',
       onComplete: (state) => {
-        state.flags.game_ended = true;
-        state.flags.all_arcs_resolved = true;
+        state.flags.arrow_ghost_fight_started = true;
       }
     }
   ],
