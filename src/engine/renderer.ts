@@ -1,11 +1,13 @@
 import { Entity, Vector2 } from '../types';
 import { Camera } from './camera';
 import { EntitySpriteSystem } from './entitySprite';
+import { EnvironmentRenderer } from './environment';
 
 export class Renderer {
   ctx: CanvasRenderingContext2D;
   canvas: HTMLCanvasElement;
   sprites = new EntitySpriteSystem();
+  environment = new EnvironmentRenderer();
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -35,8 +37,7 @@ export class Renderer {
   }
 
   clear() {
-    this.ctx.fillStyle = '#0d0d0d';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
   /** Advances animation state and draws a single entity (human or object). */
@@ -53,26 +54,24 @@ export class Renderer {
     this.sprites.draw(this.ctx, entity, { hp });
   }
 
-  drawWorld(locations: any, camera: Camera) {
-    Object.values(locations).forEach((loc: any) => {
-      const { bounds, name, color } = loc;
+  /** Terrain, roads, scenery props, ambient lighting and zone labels. */
+  drawWorld(locations: unknown, camera: Camera) {
+    void locations;
+    this.environment.draw(this.ctx, {
+      x: camera.pos.x,
+      y: camera.pos.y,
+      w: camera.viewport.x,
+      h: camera.viewport.y,
+    });
+  }
 
-      if (!this.isVisible(bounds.x, bounds.y, bounds.width, bounds.height, camera)) return;
-
-      // Draw background
-      this.ctx.fillStyle = color;
-      this.ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-
-      // Draw border
-      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-      this.ctx.lineWidth = 2;
-      this.ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-
-      // Draw area name
-      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-      this.ctx.font = 'bold 40px Inter';
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText(name, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  /** Emissive prop details, drawn after characters so lights sit in front. */
+  drawWorldLights(camera: Camera) {
+    this.environment.drawEmissive(this.ctx, {
+      x: camera.pos.x,
+      y: camera.pos.y,
+      w: camera.viewport.x,
+      h: camera.viewport.y,
     });
   }
 

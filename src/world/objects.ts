@@ -8,6 +8,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 40, y: 40 },
     color: '#ffaa00',
     type: 'object',
+    propKind: 'neon',
     interactable: true,
     description: 'A floating unfinished map. It looks unplayable. Rimai is screaming in the distance.'
   },
@@ -18,6 +19,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 50, y: 30 },
     color: '#ffaa00',
     type: 'object',
+    propKind: 'neon',
     interactable: true,
     description: 'This map has 20000 spikes in one tile. "PERFECTION" - Rimai.'
   },
@@ -28,6 +30,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 200, y: 40 },
     color: '#00ffff',
     type: 'object',
+    propKind: 'banner',
     interactable: true,
     description: '"THAT\'S WHY WE ARROW!" is written in glowing neon letters.'
   },
@@ -38,6 +41,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 60, y: 80 },
     color: '#8b4513',
     type: 'object',
+    propKind: 'board',
     interactable: true,
     description: 'Current drama: ripted leaked his own IP again. lmao.'
   },
@@ -48,6 +52,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 30, y: 30 },
     color: '#bf00ff',
     type: 'object',
+    propKind: 'statue',
     interactable: true,
     description: 'Champy is literally crying next to the leaderboard. "i should be #1" he sobbed.'
   },
@@ -58,6 +63,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 100, y: 150 },
     color: '#ffd700',
     type: 'object',
+    propKind: 'board',
     interactable: true,
     description: '#1 Ripted\n#2 Champy (crying)\n#3 arrow_ghost (GLITCHING)'
   },
@@ -68,6 +74,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 40, y: 40 },
     color: '#ffd700',
     type: 'object',
+    propKind: 'plaque',
     interactable: true,
     secretId: 'found_poop_plaque',
     description: 'Commemorating the poop video incident. 20000 years ago.'
@@ -79,6 +86,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 100, y: 20 },
     color: '#333333',
     type: 'object',
+    propKind: 'plaque',
     interactable: true,
     secretId: 'read_20000_carving',
     description: '"20000 years ago" is carved into the floor here.'
@@ -90,6 +98,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 20, y: 20 },
     color: '#ffffff',
     type: 'object',
+    propKind: 'crystal',
     interactable: true,
     itemId: 'update_fragment',
     description: 'The final update fragment. It smells like 20000 years of development.'
@@ -101,6 +110,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 80, y: 30 },
     color: '#ff0000',
     type: 'object',
+    propKind: 'neon',
     interactable: true,
     secretId: 'leaked_the_ip',
     description: "It's Ripted's IP leak date. Nobody knows how it got here."
@@ -112,6 +122,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 120, y: 40 },
     color: '#ffffff',
     type: 'object',
+    propKind: 'neon',
     interactable: true,
     secretId: 'zu_zahlen',
     description: '"Zu zahlen 0.01" is spray-painted here.'
@@ -123,6 +134,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 50, y: 70 },
     color: '#ffffff',
     type: 'object',
+    propKind: 'board',
     interactable: true,
     description: 'i am sorry for threatening poland. i will do it again.'
   },
@@ -133,6 +145,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 80, y: 40 },
     color: '#00ffff',
     type: 'object',
+    propKind: 'clock',
     interactable: true,
     description: 'A glowing timer. It shows 0.01. Polar is unimpressed.'
   },
@@ -143,6 +156,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 80, y: 40 },
     color: '#00ffff',
     type: 'object',
+    propKind: 'clock',
     interactable: true,
     description: 'This timer is counting up to 20000 years.'
   },
@@ -153,6 +167,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 100, y: 60 },
     color: '#444444',
     type: 'object',
+    propKind: 'sign',
     interactable: true,
     description: 'A sign that says "Population: decreasing. Last active player: 20000 years ago."'
   },
@@ -163,6 +178,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 20, y: 20 },
     color: '#ffffff',
     type: 'object',
+    propKind: 'crystal',
     interactable: true,
     itemId: 'update_fragment',
     description: 'A glowing update fragment. It contains code for a new level.'
@@ -174,6 +190,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 20, y: 20 },
     color: '#ffffff',
     type: 'object',
+    propKind: 'crystal',
     interactable: true,
     itemId: 'update_fragment',
     description: 'A glowing update fragment. It contains a bug fix for Champy.'
@@ -185,6 +202,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 30, y: 10 },
     color: '#f5deb3',
     type: 'object',
+    propKind: 'baguette',
     interactable: true,
     itemId: 'baguette',
     description: 'A very hard baguette. Could be used as a weapon.'
@@ -196,6 +214,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 60, y: 60 },
     color: '#b22222',
     type: 'object',
+    propKind: 'shrine',
     interactable: true,
     itemId: 'paprika',
     description: 'A shrine to the paprika king. A glowing red shard sits on top.'
@@ -207,6 +226,7 @@ export const WORLD_OBJECTS: WorldObject[] = [
     size: { x: 20, y: 20 },
     color: '#c0c0c0',
     type: 'object',
+    propKind: 'crystal',
     interactable: true,
     itemId: 'admin_key',
     secretId: 'found_admin_key',

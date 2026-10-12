@@ -1,4 +1,5 @@
 import { Appearance, Entity, HairStyle } from '../types';
+import { shade, withAlpha, hash01 } from './color';
 
 type Facing = 'down' | 'up' | 'left' | 'right';
 
@@ -8,25 +9,6 @@ interface AnimState {
   phase: number;
   facing: Facing;
   moving: boolean;
-}
-
-/** Multiplies a hex colour towards black (amount < 0) or white (amount > 0). */
-function shade(hex: string, amount: number): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return hex;
-  const num = parseInt(m[1], 16);
-  let r = (num >> 16) & 255;
-  let g = (num >> 8) & 255;
-  let b = num & 255;
-  if (amount < 0) {
-    const k = 1 + amount;
-    r = Math.round(r * k); g = Math.round(g * k); b = Math.round(b * k);
-  } else {
-    r = Math.round(r + (255 - r) * amount);
-    g = Math.round(g + (255 - g) * amount);
-    b = Math.round(b + (255 - b) * amount);
-  }
-  return `rgb(${r}, ${g}, ${b})`;
 }
 
 const HAIR_STYLES: HairStyle[] = ['short', 'long', 'spiky', 'bun', 'ponytail'];
@@ -134,13 +116,229 @@ export class EntitySpriteSystem {
     }
   }
 
+  /**
+   * Soft elliptical contact shadow under an entity. Shared by world objects and
+   * scenery props so everything reads as sitting on the ground.
+   */
+  drawShadow(ctx: CanvasRenderingContext2D, cx: number, baseY: number, w: number, h = w * 0.4) {
+    const g = ctx.createRadialGradient(cx, baseY, 0, cx, baseY, w);
+    g.addColorStop(0, 'rgba(0,0,0,0.38)');
+    g.addColorStop(0.7, 'rgba(0,0,0,0.16)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(cx, baseY, w, h, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   private drawObject(ctx: CanvasRenderingContext2D, entity: Entity) {
     const { pos, size, color } = entity;
-    ctx.fillStyle = color;
-    ctx.fillRect(pos.x, pos.y, size.x, size.y);
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    const cx = pos.x + size.x / 2;
+    const baseY = pos.y + size.y;
+    const kind = entity.propKind ?? 'crate';
+
+    this.drawShadow(ctx, cx, baseY, Math.max(size.x, 18) * 0.7, Math.max(size.y, 14) * 0.28);
+
+    const w = size.x;
+    const h = size.y;
+    switch (kind) {
+      case 'board': return this.drawBoard(ctx, cx, baseY, w, h, color, entity.name);
+      case 'banner': return this.drawBanner(ctx, cx, baseY, w, h, color);
+      case 'sign': return this.drawSign(ctx, cx, baseY, w, h, color);
+      case 'clock': return this.drawClock(ctx, cx, baseY, w, h, color);
+      case 'shrine': return this.drawShrine(ctx, cx, baseY, w, h, color);
+      case 'baguette': return this.drawBaguette(ctx, cx, baseY, w, h, color);
+      case 'plaque': return this.drawPlaque(ctx, cx, baseY, w, h, color);
+      case 'crystal':
+      default: return this.drawCrystal(ctx, cx, baseY, w, h, color);
+    }
+  }
+
+  private drawPanel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, base: string) {
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, shade(base, 0.16));
+    g.addColorStop(1, shade(base, -0.24));
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+    ctx.strokeStyle = withAlpha(shade(base, 0.5), 0.35);
     ctx.lineWidth = 1;
-    ctx.strokeRect(pos.x, pos.y, size.x, size.y);
+    ctx.strokeRect(x + 4, y + 4, w - 8, h - 8);
+  }
+
+  private drawBoard(ctx: CanvasRenderingContext2D, cx: number, baseY: number, w: number, h: number, color: string, name: string) {
+    const postH = h * 0.35;
+    ctx.fillStyle = shade('#5a3d24', -0.15);
+    ctx.fillRect(cx - 3, baseY - postH, 6, postH);
+    this.drawPanel(ctx, cx - w / 2, baseY - h, w, h - postH, color);
+    // Paper scraps pinned to the board.
+    const papers = 5;
+    for (let i = 0; i < papers; i++) {
+      const px = cx - w / 2 + 6 + hash01(name + i, 12) * (w - 22);
+      const py = baseY - h + 8 + hash01(name + i, 7) * (h - postH - 22);
+      ctx.fillStyle = i % 2 ? '#e9e2c8' : '#d9d2b4';
+      ctx.fillRect(px, py, 9, 11);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(px, py + 3, 7, 1);
+      ctx.fillRect(px, py + 6, 7, 1);
+    }
+  }
+
+  private drawBanner(ctx: CanvasRenderingContext2D, cx: number, baseY: number, w: number, h: number, color: string) {
+    // Two poles with a hanging clothy banner.
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(cx - w / 2, baseY - h * 2.4, 4, h * 2.4);
+    ctx.fillRect(cx + w / 2 - 4, baseY - h * 2.4, 4, h * 2.4);
+    const top = baseY - h * 2.1;
+    const g = ctx.createLinearGradient(0, top, 0, baseY);
+    g.addColorStop(0, shade(color, 0.35));
+    g.addColorStop(1, shade(color, -0.15));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2 + 4, top);
+    ctx.lineTo(cx + w / 2 - 4, top);
+    ctx.lineTo(cx + w / 2 - 4, baseY - h * 0.3);
+    ctx.lineTo(cx, baseY);
+    ctx.lineTo(cx - w / 2 + 4, baseY - h * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = withAlpha('#ffffff', 0.85);
+    ctx.font = 'bold 13px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText('THAT\'S WHY WE ARROW!', cx, top + 34);
+  }
+
+  private drawSign(ctx: CanvasRenderingContext2D, cx: number, baseY: number, w: number, h: number, color: string) {
+    const postH = h * 0.6;
+    ctx.fillStyle = shade('#6b5a3a', -0.2);
+    ctx.fillRect(cx - 4, baseY - postH, 8, postH);
+    this.drawPanel(ctx, cx - w / 2, baseY - h, w, h - postH, color);
+    ctx.fillStyle = withAlpha('#ffffff', 0.7);
+    ctx.fillRect(cx - w / 2 + 10, baseY - h + (h - postH) / 2 - 3, w - 20, 3);
+    ctx.fillRect(cx - w / 2 + 14, baseY - h + (h - postH) / 2 + 5, w - 34, 3);
+  }
+
+  private drawClock(ctx: CanvasRenderingContext2D, cx: number, baseY: number, w: number, h: number, color: string) {
+    const r = Math.min(w, h * 1.6) / 2;
+    const cy = baseY - r - 4;
+    const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, r);
+    g.addColorStop(0, shade(color, 0.5));
+    g.addColorStop(1, shade(color, -0.35));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy - r * 0.6);
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + r * 0.45, cy + r * 0.2);
+    ctx.stroke();
+  }
+
+  private drawShrine(ctx: CanvasRenderingContext2D, cx: number, baseY: number, w: number, h: number, color: string) {
+    ctx.fillStyle = shade(color, -0.3);
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2, baseY);
+    ctx.lineTo(cx - w / 3, baseY - h);
+    ctx.lineTo(cx + w / 3, baseY - h);
+    ctx.lineTo(cx + w / 2, baseY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = shade(color, -0.05);
+    ctx.fillRect(cx - w * 0.36, baseY - h - 6, w * 0.72, 8);
+    // Glowing shard.
+    ctx.fillStyle = '#ff5a3c';
+    ctx.beginPath();
+    ctx.moveTo(cx, baseY - h - 24);
+    ctx.lineTo(cx + 5, baseY - h - 12);
+    ctx.lineTo(cx, baseY - h - 2);
+    ctx.lineTo(cx - 5, baseY - h - 12);
+    ctx.closePath();
+    ctx.fill();
+    const glow = ctx.createRadialGradient(cx, baseY - h - 12, 0, cx, baseY - h - 12, 26);
+    glow.addColorStop(0, 'rgba(255,90,60,0.55)');
+    glow.addColorStop(1, 'rgba(255,90,60,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(cx - 30, baseY - h - 42, 60, 60);
+  }
+
+  private drawBaguette(ctx: CanvasRenderingContext2D, cx: number, baseY: number, w: number, h: number, color: string) {
+    // A small table with the loaf on top.
+    ctx.fillStyle = '#6b4a2c';
+    ctx.fillRect(cx - w * 0.9, baseY - h * 1.2, w * 1.8, h * 0.5);
+    ctx.fillRect(cx - w * 0.7, baseY - h * 0.7, 4, h * 0.7);
+    ctx.fillRect(cx + w * 0.7, baseY - h * 0.7, 4, h * 0.7);
+    ctx.save();
+    ctx.translate(cx, baseY - h * 1.6);
+    ctx.rotate(-0.28);
+    const g = ctx.createLinearGradient(0, -6, 0, 6);
+    g.addColorStop(0, shade(color, 0.35));
+    g.addColorStop(1, shade(color, -0.15));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w * 1.1, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(120,80,40,0.7)';
+    ctx.lineWidth = 1;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * w * 0.36 - 3, -4);
+      ctx.lineTo(i * w * 0.36 + 3, -4);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private drawPlaque(ctx: CanvasRenderingContext2D, cx: number, baseY: number, w: number, h: number, color: string) {
+    const s = Math.max(w, 26);
+    const g = ctx.createLinearGradient(cx - s, baseY - s, cx + s, baseY);
+    g.addColorStop(0, shade(color, 0.45));
+    g.addColorStop(0.5, color);
+    g.addColorStop(1, shade(color, -0.3));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(cx, baseY - s * 1.3);
+    ctx.lineTo(cx + s * 0.7, baseY - s * 0.9);
+    ctx.lineTo(cx + s * 0.55, baseY - s * 0.2);
+    ctx.lineTo(cx, baseY);
+    ctx.lineTo(cx - s * 0.55, baseY - s * 0.2);
+    ctx.lineTo(cx - s * 0.7, baseY - s * 0.9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  private drawCrystal(ctx: CanvasRenderingContext2D, cx: number, baseY: number, w: number, h: number, color: string) {
+    const s = Math.max(w, 18);
+    const bob = Math.sin(Date.now() / 500 + hash01(String(cx), 3) * 6) * 3;
+    const cy = baseY - s - bob;
+    const g = ctx.createLinearGradient(cx, cy - s, cx, cy + s);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.5, color);
+    g.addColorStop(1, shade(color, -0.2));
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - s * 0.8);
+    ctx.lineTo(cx + s * 0.5, cy);
+    ctx.lineTo(cx, cy + s * 0.8);
+    ctx.lineTo(cx - s * 0.5, cy);
+    ctx.closePath();
+    ctx.fill();
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 1.6);
+    glow.addColorStop(0, withAlpha(color, 0.5));
+    glow.addColorStop(1, withAlpha(color, 0));
+    ctx.fillStyle = glow;
+    ctx.fillRect(cx - s * 1.6, cy - s * 1.6, s * 3.2, s * 3.2);
   }
 
   private drawHealthBar(

@@ -7,6 +7,7 @@ import { Player } from './game/player';
 import { NPCS } from './data/npcs';
 import { APPEARANCES } from './data/appearances';
 import { WORLD_OBJECTS } from './world/objects';
+import { ROADS, PROPS } from './world/props';
 import { LOCATIONS, LOCATION_MINIMAP_COLORS } from './data/locations';
 import { DIALOGUE } from './data/characters';
 import { ITEMS, STARTING_ITEM } from './data/items';
@@ -246,6 +247,16 @@ export default function App() {
         ctx.strokeStyle = 'rgba(255,255,255,0.12)';
         ctx.strokeRect(b.x * sx, b.y * sy, b.width * sx, b.height * sy);
       });
+      // Roads
+      ctx.fillStyle = 'rgba(140,130,100,0.5)';
+      ROADS.forEach(r => {
+        ctx.fillRect(r.x * sx, r.y * sy, Math.max(1, r.w * sx), Math.max(1, r.h * sy));
+      });
+      // Scenery (faint dots) so the world reads as populated.
+      ctx.fillStyle = 'rgba(150,200,150,0.28)';
+      PROPS.forEach(p => {
+        ctx.fillRect((p.pos.x + p.size.x / 2) * sx - 0.5, (p.pos.y + p.size.y / 2) * sy - 0.5, 1, 1);
+      });
       // NPC markers
       ctx.fillStyle = 'rgba(255,255,255,0.55)';
       NPCS.forEach(npc => {
@@ -393,6 +404,7 @@ export default function App() {
         );
       });
       renderer.drawEntity(player, camera, undefined, dt);
+      renderer.drawWorldLights(camera);
       renderer.ctx.restore();
 
       drawMinimap(camera);
