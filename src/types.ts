@@ -5,7 +5,7 @@ export interface Vector2 {
   y: number;
 }
 
-export type HairStyle = 'short' | 'long' | 'bald' | 'ponytail' | 'spiky' | 'bun';
+export type HairStyle = 'short' | 'long' | 'bald' | 'ponytail' | 'spiky' | 'bun' | 'mohawk' | 'buzz';
 
 /** Everything needed to draw a character as a stylised human. */
 export interface Appearance {
@@ -23,6 +23,10 @@ export interface Appearance {
   opacity?: number;
   /** Optional colour glow drawn behind the character. */
   glow?: string;
+  /** Optional one-line flavour shown on the character-select card. */
+  role?: string;
+  /** Optional short blurb shown on the character-select card. */
+  blurb?: string;
 }
 
 export interface Entity {
@@ -274,24 +278,6 @@ export interface Enemy extends Entity {
 }
 
 export type WeatherKind = 'clear' | 'rain' | 'snow';
-
-/** Content categories mirroring the game's maturity advisory. */
-export type MatureTag =
-  | 'violence'
-  | 'blood_gore'
-  | 'crime'
-  | 'humor'
-  | 'nudity'
-  | 'language'
-  | 'sexual'
-  | 'substances';
-
-/** A registry of every mature element, surfaced in the advisory screen. */
-export interface ContentAdvisory {
-  rating: string;
-  summary: string;
-  descriptors: { tag: MatureTag; label: string; blurb: string }[];
-}
 
 /** Intoxicants the player can buy and use; each applies a status effect. */
 export type SubstanceKind = 'ale' | 'dust' | 'nectar';

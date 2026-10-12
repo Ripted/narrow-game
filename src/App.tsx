@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 import { Renderer } from './engine/renderer';
 import { InputHandler } from './engine/input';
 import { Camera } from './engine/camera';
@@ -12,7 +13,7 @@ import { BUILDINGS } from './world/buildings';
 import { LOCATIONS, LOCATION_MINIMAP_COLORS } from './data/locations';
 import { DIALOGUE } from './data/characters';
 import { ITEMS, STARTING_ITEM } from './data/items';
-import { NPC as NpcType, DialogueNode, GameState, Vector2, Achievement, Interior, ShopEntry, Enemy, Car, SubstanceEffect } from './types';
+import { NPC as NpcType, DialogueNode, GameState, Vector2, Achievement, Interior, ShopEntry, Enemy, Car, SubstanceEffect, Appearance } from './types';
 import { StoryManager, QUEST_MARKERS } from './game/story';
 import { StateManager, SLOT_COUNT } from './game/state';
 import { WorldRuntime } from './game/world';
@@ -22,15 +23,30 @@ import { BUILDING_LABELS } from './types';
 import { AudioManager } from './audio';
 import { SUBSTANCES, SUBSTANCE_ITEM } from './data/substances';
 import { RADIO_STATIONS, applyLanguageFilter, GRAFFITI } from './data/humor';
-import { CONTENT_ADVISORY, ADVISORY_ACCEPT_KEY } from './data/mature';
 import { CharacterPreview } from './components/CharacterPreview';
 
-const CHARACTERS = [
-  { id: 'penguin', name: 'Penguin1NA', color: '#00ffff', appearance: APPEARANCES.penguin },
-  { id: 'ripted', name: 'Ripted', color: '#ffd700', appearance: APPEARANCES.ripted },
-  { id: 'champy', name: 'Champy', color: '#bf00ff', appearance: APPEARANCES.champy },
-  { id: 'polar', name: 'Polar', color: '#add8e6', appearance: APPEARANCES.polar },
-  { id: 'custom', name: 'Custom', color: '#ffffff', appearance: APPEARANCES.custom }
+interface PlayableChar {
+  id: string;
+  name: string;
+  color: string;
+  appearance: Appearance;
+  group: 'Originals' | 'New Blood';
+  role: string;
+  blurb: string;
+}
+
+const CHARACTERS: PlayableChar[] = [
+  { id: 'penguin', name: 'Penguin1NA', color: '#00ffff', appearance: APPEARANCES.penguin, group: 'Originals', role: 'The original', blurb: 'Started this whole mess. Still here.' },
+  { id: 'ripted', name: 'Ripted', color: '#ffd700', appearance: APPEARANCES.ripted, group: 'Originals', role: 'Founder energy', blurb: 'Built the list. Regrets the list.' },
+  { id: 'champy', name: 'Champy', color: '#bf00ff', appearance: APPEARANCES.champy, group: 'Originals', role: 'League veteran', blurb: 'Number one, by any means available.' },
+  { id: 'polar', name: 'Polar', color: '#add8e6', appearance: APPEARANCES.polar, group: 'Originals', role: 'Speedrunner', blurb: 'Does not stop. Does not explain.' },
+  { id: 'custom', name: 'Custom', color: '#ffffff', appearance: APPEARANCES.custom, group: 'Originals', role: 'Your own legend', blurb: 'Name yourself. Face the void.' },
+  { id: 'vex', name: 'Vex', color: '#8a7a6a', appearance: APPEARANCES.vex, group: 'New Blood', role: APPEARANCES.vex.role!, blurb: APPEARANCES.vex.blurb! },
+  { id: 'marla', name: 'Marla', color: '#e46aa0', appearance: APPEARANCES.marla, group: 'New Blood', role: APPEARANCES.marla.role!, blurb: APPEARANCES.marla.blurb! },
+  { id: 'bruno', name: 'Bruno', color: '#7a9a4a', appearance: APPEARANCES.bruno, group: 'New Blood', role: APPEARANCES.bruno.role!, blurb: APPEARANCES.bruno.blurb! },
+  { id: 'kaya', name: 'Kaya', color: '#39c0b0', appearance: APPEARANCES.kaya, group: 'New Blood', role: APPEARANCES.kaya.role!, blurb: APPEARANCES.kaya.blurb! },
+  { id: 'don_orso', name: 'Don Orso', color: '#b09ad0', appearance: APPEARANCES.don_orso, group: 'New Blood', role: APPEARANCES.don_orso.role!, blurb: APPEARANCES.don_orso.blurb! },
+  { id: 'stitch', name: 'Stitch', color: '#d45aff', appearance: APPEARANCES.stitch, group: 'New Blood', role: APPEARANCES.stitch.role!, blurb: APPEARANCES.stitch.blurb! },
 ];
 
 const INTERACT_RADIUS = 60;
@@ -100,6 +116,7 @@ export default function App() {
   const [isPaused, setIsPaused] = useState(false);
   const [ending, setEnding] = useState<Ending | null>(null);
   const [customName, setCustomName] = useState('');
+  const [selectedCharId, setSelectedCharId] = useState('penguin');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [equippedItemId, setEquippedItemId] = useState<string>(STARTING_ITEM);
   const [hudTick, setHudTick] = useState(0); // forces HUD refresh ~1/s
@@ -146,9 +163,6 @@ export default function App() {
   const enemyHitRef = useRef(0);
   const [drivingName, setDrivingName] = useState<string | null>(null);
   // ---- Mature-content state -------------------------------------------------
-  const [advisoryOpen, setAdvisoryOpen] = useState(
-    () => typeof localStorage !== 'undefined' && localStorage.getItem(ADVISORY_ACCEPT_KEY) !== '1'
-  );
   const [strongLanguage, setStrongLanguage] = useState(false);
   const [radioOn, setRadioOn] = useState(true);
   const [radioIdx, setRadioIdx] = useState(0);
@@ -1360,54 +1374,6 @@ export default function App() {
     if (best) setEquippedItemId(best);
   };
 
-  if (advisoryOpen) {
-    const accept = () => {
-      localStorage.setItem(ADVISORY_ACCEPT_KEY, '1');
-      setAdvisoryOpen(false);
-      getAudio().blip();
-    };
-    return (
-      <div className="select-screen advisory-screen">
-        <div className="advisory-card">
-          <div className="advisory-rating">{CONTENT_ADVISORY.rating}</div>
-          <p className="advisory-summary">{CONTENT_ADVISORY.summary}</p>
-          <div className="advisory-descriptors">
-            {CONTENT_ADVISORY.descriptors.map(d => (
-              <div key={d.tag} className="advisory-item">
-                <span className="advisory-label">{d.label}</span>
-                <span className="advisory-blurb">{d.blurb}</span>
-              </div>
-            ))}
-          </div>
-          <div className="advisory-options">
-            <label className="advisory-toggle">
-              <input
-                type="checkbox"
-                checked={strongLanguage}
-                onChange={(e) => setStrongLanguage(e.target.checked)}
-              />
-              Allow strong language (un-bleep dialogue)
-            </label>
-            <label className="advisory-toggle">
-              <input
-                type="checkbox"
-                checked={radioOn}
-                onChange={(e) => setRadioOn(e.target.checked)}
-              />
-              Enable in-world radio
-            </label>
-          </div>
-          <button className="pause-button cyan" style={{ width: 'auto', padding: '14px 48px', fontSize: 20 }} onClick={accept}>
-            I am 17 or older — Enter
-          </button>
-          <p className="advisory-footnote">
-            Satire only. Every brand, substance and product shown is invented for the joke.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   if (ending) {
     const stats = gameState!;
     const seconds = Math.floor(playtimeRef.current / 1000);
@@ -1439,46 +1405,74 @@ export default function App() {
   if (!gameState) {
     const slots = saveSlots;
     const hasSave = StateManager.hasAnySave();
+    const originals = CHARACTERS.filter(c => c.group === 'Originals');
+    const newBlood = CHARACTERS.filter(c => c.group === 'New Blood');
+    const preview = CHARACTERS.find(c => c.id === selectedCharId) || CHARACTERS[0];
+    const beginRun = () => startGame(preview.id);
+
+    const renderCard = (char: PlayableChar) => (
+      <button
+        key={char.id}
+        className={`char-tile ${char.id === selectedCharId ? 'selected' : ''}`}
+        style={{ '--accent': char.color } as CSSProperties}
+        onClick={() => {
+          setSelectedCharId(char.id);
+          getAudio().blip();
+        }}
+        onDoubleClick={() => startGame(char.id)}
+      >
+        <span className="char-tile-preview">
+          <CharacterPreview name={char.id} color={char.color} appearance={char.appearance} size={64} />
+        </span>
+        <span className="char-tile-name">{char.name}</span>
+      </button>
+    );
+
     return (
-      <div className="select-screen">
-        <h1 className="select-title">Narrow Arrow: The Game</h1>
-        <p className="select-sub">Select your character</p>
-        <div className="char-grid">
-          {CHARACTERS.map(char => (
-            <div key={char.id} className="char-card">
-              <button
-                className="char-option"
-                style={{ color: char.color }}
-                onClick={() => startGame(char.id)}
-              >
-                <CharacterPreview
-                  name={char.id}
-                  color={char.color}
-                  appearance={char.appearance}
-                />
-                <span className="char-name">{char.name}</span>
-              </button>
-              {char.id === 'custom' && (
-                <input
-                  type="text"
-                  placeholder="Enter name..."
-                  className="mt-2 bg-black border border-neon-cyan p-2 text-white text-center focus:outline-none focus:border-neon-orange"
-                  value={customName}
-                  onChange={(e) => setCustomName(e.target.value)}
-                />
-              )}
-            </div>
-          ))}
+      <div className="menu-screen">
+        <div className="menu-header">
+          <h1 className="menu-title">Narrow Arrow</h1>
+          <p className="menu-tagline">The Game · an open-world crime sandbox in the Narrow Arrow universe</p>
         </div>
+
+        <div className="menu-body">
+          <div className="menu-roster">
+            <div className="roster-group-label">Originals</div>
+            <div className="roster-grid">{originals.map(renderCard)}</div>
+            <div className="roster-group-label">New Blood</div>
+            <div className="roster-grid">{newBlood.map(renderCard)}</div>
+          </div>
+
+          <aside className="menu-inspect" style={{ '--accent': preview.color } as CSSProperties}>
+            <div className="inspect-portrait">
+              <CharacterPreview name={preview.id} color={preview.color} appearance={preview.appearance} size={168} />
+            </div>
+            <div className="inspect-name">{preview.name}</div>
+            <div className="inspect-role">{preview.role}</div>
+            <p className="inspect-blurb">{preview.blurb}</p>
+
+            {preview.id === 'custom' && (
+              <input
+                type="text"
+                placeholder="Enter name..."
+                className="inspect-name-input"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') beginRun(); }}
+              />
+            )}
+
+            <button className="menu-play" onClick={beginRun}>Play as {preview.name}</button>
+            <div className="menu-hint">Double-click any card to jump straight in</div>
+          </aside>
+        </div>
+
         {hasSave && (
-          <div className="save-slots">
-            <div className="text-neon-gold mb-2 uppercase tracking-widest text-sm">Continue</div>
-            <div className="flex flex-wrap justify-center gap-3">
+          <div className="menu-continue">
+            <div className="continue-label">Continue</div>
+            <div className="continue-slots">
               {StateManager.loadAutosave() && (
-                <button
-                  className="slot-button"
-                  onClick={() => loadState(StateManager.loadAutosave() as GameState)}
-                >
+                <button className="slot-button" onClick={() => loadState(StateManager.loadAutosave() as GameState)}>
                   Autosave
                 </button>
               )}
@@ -1495,6 +1489,10 @@ export default function App() {
             </div>
           </div>
         )}
+
+        <div className="menu-footnote">
+          Satire only. Every brand, substance and product in this game is invented for the joke.
+        </div>
       </div>
     );
   }

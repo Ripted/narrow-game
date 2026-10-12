@@ -613,6 +613,25 @@ export class EntitySpriteSystem {
           ctx.fill();
         }
         break;
+      case 'buzz':
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - r * 0.38, r * 0.9, r * 0.6, 0, Math.PI, 0);
+        ctx.fill();
+        break;
+      case 'mohawk': {
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - r * 0.35, r * 0.95, r * 0.62, 0, Math.PI, 0);
+        ctx.fill();
+        for (let i = -2; i <= 2; i++) {
+          ctx.beginPath();
+          ctx.moveTo(cx + i * r * 0.28 - r * 0.12, cy - r * 0.55);
+          ctx.lineTo(cx + i * r * 0.28, top - r * (0.9 - Math.abs(i) * 0.18));
+          ctx.lineTo(cx + i * r * 0.28 + r * 0.12, cy - r * 0.55);
+          ctx.closePath();
+          ctx.fill();
+        }
+        break;
+      }
     }
   }
 

@@ -34,21 +34,15 @@ The game is shifting toward a satirical open-world crime sandbox — "GTA in the
 Narrow Arrow universe". The hard constraint is **no multiplayer**, ever. Single
 player only.
 
-### Mature content system (17+)
+### Mature content system
 
-The mature layer is opt-in, self-documenting and deliberately non-explicit. It
-is satire aimed at the genre's excesses, not an attempt to reproduce them.
+The mature layer is satirical and deliberately non-explicit. It pokes at the
+genre's excesses rather than reproducing them.
 
-- **Rating gate** — `CONTENT_ADVISORY` in `src/data/mature.ts` drives the
-  first-run advisory card in `App.tsx`. Accepting stores `ADVISORY_ACCEPT_KEY`
-  in `localStorage`. The card lists every descriptor category
-  (`MatureTag`: `violence`, `blood_gore`, `crime`, `humor`, `nudity`, `language`,
-  `sexual_content`, `substances`, `alcohol`, `drugs`) and offers toggles for
-  strong language and the in-world radio.
 - **Strong language** — dialogue is authored bleeped (`s**t`, `f***ing`). The
   `applyLanguageFilter` helper in `src/data/humor.ts` is applied to every
-  dialogue line and option at render time. It is a no-op while the toggle is
-  off, which is the default. Nothing is ever authored un-bleeped.
+  dialogue line and option at render time. A pause-menu toggle un-bleeps it; the
+  default is off. Nothing is ever authored un-bleeped.
 - **Nudity / sexual content** — implied only. `statue_risque` is an abstract
   marble figure; the `bordello` interaction fades to black ("a tasteful,
   entirely implied amount of time") and awards a `feather_token`. No explicit
@@ -81,6 +75,5 @@ is satire aimed at the genre's excesses, not an attempt to reproduce them.
 1. Keep everything fictional. There are no real brands, drugs or products.
 2. Prefer implication over depiction for sexual content.
 3. Author strong language pre-bleeped; never ship an un-bleeped string.
-4. Every explicit category must stay listed on the advisory card.
-5. Satire targets the genre, not real individuals.
-6. Do not add multiplayer, and do not add a system that requires a server.
+4. Satire targets the genre, not real individuals.
+5. Do not add multiplayer, and do not add a system that requires a server.

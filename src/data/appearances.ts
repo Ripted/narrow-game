@@ -41,6 +41,49 @@ export const APPEARANCES: Record<string, Appearance> = {
     shirt: '#dddddd', pants: '#333333', shoes: '#111111',
     height: 1.0, build: 1.0,
   },
+  // ---- Extra playable characters (GTA-flavoured cast) ----
+  vex: {
+    skin: SKIN.olive, hair: '#1c1c22', hairStyle: 'mohawk',
+    shirt: '#2b2b33', pants: '#141418', shoes: '#0a0a0d',
+    height: 1.02, build: 1.1,
+    role: 'Getaway driver',
+    blurb: 'Owns three cars and the paperwork for none of them.',
+  },
+  marla: {
+    skin: SKIN.deep, hair: '#120d0a', hairStyle: 'long',
+    shirt: '#b0216a', pants: '#2a1a26', shoes: '#141014',
+    height: 1.0, build: 0.95,
+    role: 'Nightclub fixer',
+    blurb: 'Knows a guy. Knows a guy who knows the other guy.',
+  },
+  bruno: {
+    skin: SKIN.brown, hair: '#2a1a10', hairStyle: 'buzz',
+    shirt: '#3a4a2a', pants: '#242c1c', shoes: '#12160e',
+    height: 1.14, build: 1.22,
+    role: 'Docks muscle',
+    blurb: 'Moves crates. Occasionally people.',
+  },
+  kaya: {
+    skin: SKIN.tan, hair: '#8a1f1f', hairStyle: 'ponytail',
+    shirt: '#1f6a6a', pants: '#152633', shoes: '#0c1418',
+    height: 0.96, build: 0.95,
+    role: 'Scrapyard mechanic',
+    blurb: 'Can rebuild an engine out of spite and spare parts.',
+  },
+  don_orso: {
+    skin: SKIN.olive, hair: '#5a5a5a', hairStyle: 'bun',
+    shirt: '#4a3a5a', pants: '#2a2233', shoes: '#141018',
+    height: 0.94, build: 1.06,
+    role: 'Café don',
+    blurb: 'Runs the French Café. Runs a few other things too.',
+  },
+  stitch: {
+    skin: '#d8d0e0', hair: '#7a2a8a', hairStyle: 'spiky',
+    shirt: '#1a2a2a', pants: '#0f1a1a', shoes: '#080d0d',
+    height: 1.0, build: 0.92, opacity: 0.85,
+    role: 'Back-alley medic',
+    blurb: 'Patches you up. Does not ask how it happened.',
+  },
 
   // ---- NPCs ----
   hydo: {
@@ -125,4 +168,10 @@ export const PLAYER_APPEARANCE_KEYS: Record<string, string> = {
   champy: 'champy',
   polar: 'polar',
   custom: 'custom',
+  vex: 'vex',
+  marla: 'marla',
+  bruno: 'bruno',
+  kaya: 'kaya',
+  don_orso: 'don_orso',
+  stitch: 'stitch',
 };
