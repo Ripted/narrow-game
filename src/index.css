@@ -122,14 +122,19 @@ body {
 }
 
 .char-option {
-  padding: 15px 30px;
+  padding: 12px;
   margin: 10px;
   border: 2px solid transparent;
   cursor: pointer;
   transition: all 0.2s;
-  width: 300px;
+  width: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   text-align: center;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .char-option:hover {
@@ -140,6 +145,22 @@ body {
 .char-option.selected {
   border-color: var(--color-neon-orange);
   background: rgba(255, 170, 0, 0.2);
+}
+
+.char-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.char-preview {
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.char-name {
+  font-weight: bold;
+  letter-spacing: 0.05em;
 }
 
 /* ---- Minimap ---- */

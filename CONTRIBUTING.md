@@ -38,6 +38,7 @@ The game is content-driven. Most additions only touch the `src/data` folder:
 
 | To add... | Edit... |
 | --- | --- |
+| A character's look | `src/data/appearances.ts` |
 | An NPC | `src/data/npcs.ts` |
 | Dialogue | `src/data/characters.ts` (keyed by `dialogueId`) |
 | An item | `src/data/items.ts` |

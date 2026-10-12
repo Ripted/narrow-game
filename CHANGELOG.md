@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- Humanoid character sprites: every character is drawn with a head, hair in
+  six styles, torso, articulated arms and legs, and shoes. Each has a distinct
+  data-driven look (skin, hair colour, clothing, height, build).
+- Four-directional facing and a limb-driven walk cycle that scales with
+  movement speed; idle characters breathe subtly.
+- Translucent, glowing sprites for spectral characters (ESH, Aqprox,
+  `arrow_ghost`).
+- Portrait art in the dialogue box now matches the speaker's world sprite.
+- Animated character previews on the character-select screen.
 - Quest log with active/completed tracking, completable from in-game flags.
 - Inventory system with pickups, item descriptions, and equipable weapons.
 - Combat encounter against `arrow_ghost`, with player and boss health bars.

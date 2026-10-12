@@ -49,10 +49,15 @@ Touch devices get an on-screen joystick and action buttons automatically.
 
 ## Gameplay
 
-- **Explore** ten connected zones on a 3400 x 2400 map. NPCs and scenery are
-  solid, and the minimap tracks your position in real time.
+- **Explore** ten connected zones on a 3400 x 2400 map packed with hand-drawn
+  characters. NPCs and scenery are solid, and the minimap tracks your position
+  in real time.
+- **Watch the cast move.** Every character is a procedurally drawn human with a
+  limb-driven walk cycle, four facing directions, and a distinct look (skin,
+  hair, clothing, build). Ghosts and shades render translucent with a glow.
 - **Talk** to characters with a branching dialogue system. Some options only
-  appear once you have learned something elsewhere.
+  appear once you have learned something elsewhere. Dialogue portraits match
+  the character you are talking to.
 - **Collect** update fragments and other items, then **equip** weapons from the
   inventory (yes, the baguette is a weapon).
 - **Fight** `arrow_ghost` on the Narrow List. Open with `E`, watch both health
@@ -103,16 +108,20 @@ src/
   App.tsx        Game loop, UI overlays, and state wiring
   audio.ts       Web Audio sound effects and per-zone ambience
   types.ts       Shared game types
+  components/
+    CharacterPreview.tsx  Animated preview used on the select screen
   engine/
     camera.ts      Viewport follow and world/screen transforms
     collision.ts   AABB collision, map clamping, location lookup
+    entitySprite.ts  Humanoid sprites, walk cycle, and portraits
     input.ts       Keyboard and touch input with edge-triggered actions
-    renderer.ts    Canvas drawing, culling, portraits
+    renderer.ts    Canvas drawing, culling, world rendering
   game/
     player.ts      Player movement and collision response
     state.ts       Save slots and autosave (localStorage)
     story.ts       Quests, achievements, and endings
   data/
+    appearances.ts Character looks (skin, hair, clothing, build)
     characters.ts  Dialogue trees
     items.ts       Inventory item catalog
     locations.ts   Zone definitions and minimap colours

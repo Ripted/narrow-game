@@ -5,6 +5,7 @@ import { Camera } from './engine/camera';
 import { CollisionSystem, MAP_WIDTH, MAP_HEIGHT } from './engine/collision';
 import { Player } from './game/player';
 import { NPCS } from './data/npcs';
+import { APPEARANCES } from './data/appearances';
 import { WORLD_OBJECTS } from './world/objects';
 import { LOCATIONS, LOCATION_MINIMAP_COLORS } from './data/locations';
 import { DIALOGUE } from './data/characters';
@@ -13,13 +14,14 @@ import { DialogueNode, GameState, Vector2, Achievement } from './types';
 import { StoryManager } from './game/story';
 import { StateManager, SLOT_COUNT } from './game/state';
 import { AudioManager } from './audio';
+import { CharacterPreview } from './components/CharacterPreview';
 
 const CHARACTERS = [
-  { id: 'penguin', name: 'Penguin1NA', color: '#00ffff' },
-  { id: 'ripted', name: 'Ripted', color: '#ffd700' },
-  { id: 'champy', name: 'Champy', color: '#bf00ff' },
-  { id: 'polar', name: 'Polar', color: '#add8e6' },
-  { id: 'custom', name: 'Custom', color: '#ffffff' }
+  { id: 'penguin', name: 'Penguin1NA', color: '#00ffff', appearance: APPEARANCES.penguin },
+  { id: 'ripted', name: 'Ripted', color: '#ffd700', appearance: APPEARANCES.ripted },
+  { id: 'champy', name: 'Champy', color: '#bf00ff', appearance: APPEARANCES.champy },
+  { id: 'polar', name: 'Polar', color: '#add8e6', appearance: APPEARANCES.polar },
+  { id: 'custom', name: 'Custom', color: '#ffffff', appearance: APPEARANCES.custom }
 ];
 
 const INTERACT_RADIUS = 60;
@@ -207,7 +209,7 @@ export default function App() {
 
     if (!engineRef.current) {
       const char = CHARACTERS.find(c => c.id === gameState.player.characterType) || CHARACTERS[0];
-      const player = new Player(gameState.player.name, char.color, gameState.player.pos);
+      const player = new Player(gameState.player.name, char.color, gameState.player.pos, char.appearance);
       const canvas = canvasRef.current;
       engineRef.current = {
         renderer: new Renderer(canvas),
@@ -380,16 +382,17 @@ export default function App() {
       renderer.ctx.save();
       camera.apply(renderer.ctx);
       renderer.drawWorld(LOCATIONS, camera);
-      WORLD_OBJECTS.forEach(obj => renderer.drawEntity(obj, camera));
+      WORLD_OBJECTS.forEach(obj => renderer.drawEntity(obj, camera, undefined, dt));
       NPCS.forEach(npc => {
         const isBoss = npc.id === 'arrow_ghost';
         renderer.drawEntity(
           npc,
           camera,
-          isBoss && fighting ? { hp: combat?.hp ?? 60, maxHp: combat?.maxHp ?? 60 } : undefined
+          isBoss && fighting ? { hp: combat?.hp ?? 60, maxHp: combat?.maxHp ?? 60 } : undefined,
+          dt
         );
       });
-      renderer.drawEntity(player, camera);
+      renderer.drawEntity(player, camera, undefined, dt);
       renderer.ctx.restore();
 
       drawMinimap(camera);
@@ -609,13 +612,18 @@ export default function App() {
         <p className="mb-6 text-gray-400">Select your character</p>
         <div className="flex flex-wrap justify-center max-w-4xl">
           {CHARACTERS.map(char => (
-            <div key={char.id} className="flex flex-col items-center">
+            <div key={char.id} className="char-card">
               <button
                 className="char-option"
                 style={{ color: char.color }}
                 onClick={() => startGame(char.id)}
               >
-                {char.name}
+                <CharacterPreview
+                  name={char.id}
+                  color={char.color}
+                  appearance={char.appearance}
+                />
+                <span className="char-name">{char.name}</span>
               </button>
               {char.id === 'custom' && (
                 <input

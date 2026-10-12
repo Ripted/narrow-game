@@ -5,6 +5,26 @@ export interface Vector2 {
   y: number;
 }
 
+export type HairStyle = 'short' | 'long' | 'bald' | 'ponytail' | 'spiky' | 'bun';
+
+/** Everything needed to draw a character as a stylised human. */
+export interface Appearance {
+  skin: string;
+  hair: string;
+  hairStyle: HairStyle;
+  shirt: string;
+  pants: string;
+  shoes: string;
+  /** 0.85 (short) to 1.15 (tall). */
+  height: number;
+  /** 0.85 (slim) to 1.25 (broad). */
+  build: number;
+  /** Optional translucency, e.g. for the ghost. */
+  opacity?: number;
+  /** Optional colour glow drawn behind the character. */
+  glow?: string;
+}
+
 export interface Entity {
   id: string;
   name: string;
@@ -12,6 +32,7 @@ export interface Entity {
   size: Vector2;
   color: Color;
   type: 'player' | 'npc' | 'object';
+  appearance?: Appearance;
 }
 
 export interface NPC extends Entity {
