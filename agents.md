@@ -124,3 +124,12 @@ dialogue tree whose fight node sets `startFlag`. `App.tsx` derives the active
 boss from flags via `BOSS_BY_NPC`, so no per-boss branching is needed. Set
 `resolvesArcs: true` only on the final boss; other bosses end their own fight
 and leave the game running.
+
+## Camera framing
+
+`Camera.update` clamps its target to `MAP_WIDTH`/`MAP_HEIGHT` (from
+`src/engine/collision.ts`). The player spawns near the map's top-left corner
+(world 100,100 in a 5600x4000 map), so an unclamped camera centres on the
+corner and fills most of the viewport with out-of-bounds void — which reads as
+a blank first screen. Any new camera that centres on a target must clamp the
+same way.
