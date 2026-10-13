@@ -1,4 +1,5 @@
 import { Vector2 } from '../types';
+import { MAP_WIDTH, MAP_HEIGHT } from './collision';
 
 export class Camera {
   pos: Vector2 = { x: 0, y: 0 };
@@ -14,6 +15,13 @@ export class Camera {
     // Center camera on target
     this.target.x = targetPos.x - this.viewport.x / 2;
     this.target.y = targetPos.y - this.viewport.y / 2;
+
+    // Never show the void past the map edge: the spawn sits near the top-left
+    // corner, so an unclamped camera would frame mostly out-of-bounds darkness.
+    const maxX = Math.max(0, MAP_WIDTH - this.viewport.x);
+    const maxY = Math.max(0, MAP_HEIGHT - this.viewport.y);
+    this.target.x = Math.max(0, Math.min(maxX, this.target.x));
+    this.target.y = Math.max(0, Math.min(maxY, this.target.y));
 
     // Smooth follow
     this.pos.x += (this.target.x - this.pos.x) * this.lerpFactor;

@@ -30,6 +30,10 @@ interface LiveNpc extends NPC {
   wait: number;
   /** 0..1 smoothly interpolated night fade for drawing. */
   nightFade: number;
+  /** Active knockback from a car or a shove, if any. */
+  knock?: { vx: number; vy: number; t: number };
+  /** True while the NPC is reeling; used to face the right way when drawing. */
+  reeling?: boolean;
 }
 
 interface RouteGeom {
@@ -202,7 +206,8 @@ export class WorldRuntime {
     for (const npc of this.npcs) {
       const target = this.night ? 0 : 1;
       npc.nightFade += (target - npc.nightFade) * Math.min(1, dtSec * 1.5);
-      if (this.night) continue;
+      // Knockback resolves even at night, so a shoved NPC never freezes mid-air.
+      if (this.night && !npc.knock) continue;
       this.stepNpc(npc, dtSec);
     }
 
@@ -409,6 +414,25 @@ export class WorldRuntime {
   }
 
   private stepNpc(npc: LiveNpc, dtSec: number) {
+    // A shove or a car hit sends the NPC reeling; it slides to a stop and does
+    // not walk its route until the knockback has burned off.
+    if (npc.knock) {
+      const k = npc.knock;
+      npc.pos.x += k.vx * dtSec;
+      npc.pos.y += k.vy * dtSec;
+      const decay = Math.max(0, 1 - dtSec * 3.4);
+      k.vx *= decay;
+      k.vy *= decay;
+      k.t -= dtSec;
+      npc.pos.x = Math.max(0, Math.min(5600 - npc.size.x, npc.pos.x));
+      npc.pos.y = Math.max(0, Math.min(4000 - npc.size.y, npc.pos.y));
+      if (k.t <= 0) {
+        npc.knock = undefined;
+        npc.reeling = false;
+      }
+      return;
+    }
+
     const sched = npc.scheduleId ? SCHEDULES[npc.scheduleId] : null;
     if (!sched || sched.waypoints.length === 0) {
       // No route: drift gently around the spawn for a lived-in feel.
@@ -525,6 +549,32 @@ export class WorldRuntime {
       if (d < bestD) { bestD = d; best = p; }
     }
     return best;
+  }
+
+  /**
+   * Pedestrians overlapping a moving car. Returns the first hit so the caller
+   * can shove it aside; walking into one does not make the car a wall.
+   */
+  pedestrianHitBy(pos: Vector2, size: Vector2): LiveNpc | null {
+    const cx = pos.x + size.x / 2;
+    const cy = pos.y + size.y / 2;
+    for (const n of this.visibleNpcs()) {
+      const d = Math.hypot(cx - (n.pos.x + n.size.x / 2), cy - (n.pos.y + n.size.y / 2));
+      if (d < 34 + Math.max(size.x, size.y) * 0.4) return n;
+    }
+    return null;
+  }
+
+  /** Shoves an NPC away from a point, as if clipped by a car or barged. */
+  shoveNpc(id: string, fromX: number, fromY: number, power: number, seconds = 0.7) {
+    const npc = this.npcs.find((n) => n.id === id);
+    if (!npc) return;
+    const dx = (npc.pos.x + npc.size.x / 2) - fromX;
+    const dy = (npc.pos.y + npc.size.y / 2) - fromY;
+    const d = Math.hypot(dx, dy) || 1;
+    npc.knock = { vx: (dx / d) * power, vy: (dy / d) * power, t: seconds };
+    npc.reeling = true;
+    npc.wait = Math.max(npc.wait, seconds);
   }
 
   /** Solid world rectangles for exterior collision (closed gates only). */

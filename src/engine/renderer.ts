@@ -59,23 +59,6 @@ export class Renderer {
     this.sprites.draw(this.ctx, entity, { hp });
   }
 
-  /**
-   * Draws an entity seated in a car: torso visible through the cabin, legs
-   * hidden, and no nameplate (a driver should not float a label over the roof).
-   */
-  drawEntityInCar(
-    entity: Entity,
-    camera: Camera,
-    car: Car,
-    dtMs = 16
-  ) {
-    const { pos, size } = car;
-    if (!this.isVisible(pos.x, pos.y - size.y, size.x, size.y * 2.2, camera)) return;
-
-    this.sprites.draw(this.ctx, entity, { driving: true });
-    void dtMs;
-  }
-
   /** Terrain, roads, scenery props, fixtures, ambient lighting and zone labels. */
   drawWorld(locations: unknown, camera: Camera, extras: EnvExtras = {}) {
     void locations;

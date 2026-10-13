@@ -178,6 +178,9 @@ export default function App() {
   const dustRef = useRef<{ x: number; y: number; vx: number; vy: number; life: number }[]>([]);
   const shakeRef = useRef(0);
   const enemyHitRef = useRef(0);
+  const pedHitRef = useRef(0);
+  /** 0..1 red damage vignette, decays each frame. */
+  const hurtFlashRef = useRef(0);
   const [drivingName, setDrivingName] = useState<string | null>(null);
   const [carSpeed, setCarSpeed] = useState(0);
   const carSpeedRef = useRef(0);
@@ -187,6 +190,8 @@ export default function App() {
   const initialSettings = useRef(SettingsStore.load());
   const [strongLanguage, setStrongLanguage] = useState(initialSettings.current.strongLanguage);
   const [radioOn, setRadioOn] = useState(initialSettings.current.radioOn);
+  const [audioVolume, setAudioVolume] = useState(initialSettings.current.volume);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [radioIdx, setRadioIdx] = useState(0);
   const [radioLine, setRadioLine] = useState(0);
   const [substance, setSubstance] = useState<SubstanceEffect | null>(null);
@@ -224,7 +229,25 @@ export default function App() {
       muted: getAudio().muted,
       volume: getAudio().getVolume(),
     });
-  }, [strongLanguage, radioOn, getAudio]);
+  }, [strongLanguage, radioOn, audioVolume, getAudio]);
+
+  // Fullscreen is a browser-level concern; mirror its state so the pause menu
+  // label stays correct when the player leaves with Esc or F11.
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch {
+      // Denied (e.g. an iframe without allowfullscreen); leave the state as-is.
+    }
+  }, []);
+
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    onChange();
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
 
   const resetRunRefs = () => {
     engineRef.current = null;
@@ -242,6 +265,11 @@ export default function App() {
     setBossFight(null);
     setCombat(null);
     setSpeedrun({ active: false, elapsed: 0, best: null });
+    pedHitRef.current = 0;
+    hurtFlashRef.current = 0;
+    shakeRef.current = 0;
+    skidRef.current = [];
+    dustRef.current = [];
     setRunId(n => n + 1);
   };
 
@@ -481,6 +509,12 @@ export default function App() {
         ctx.fillStyle = '#ff4030';
         ctx.fillRect((e.pos.x + e.size.x / 2) * sx - 1.5, (e.pos.y + e.size.y / 2) * sy - 1.5, 3, 3);
       });
+      // Police, drawn as flashing blue pips so a chase is readable at a glance.
+      const policeFlash = Math.sin(performance.now() / 140) > 0;
+      (worldRef.current?.police || []).forEach(p => {
+        ctx.fillStyle = policeFlash ? '#4080ff' : '#ffffff';
+        ctx.fillRect((p.pos.x + p.size.x / 2) * sx - 2, (p.pos.y + p.size.y / 2) * sy - 2, 4, 4);
+      });
       // Gates.
       (worldRef.current?.gates || []).forEach(g => {
         ctx.fillStyle = g.open ? 'rgba(120,220,120,0.7)' : 'rgba(255,90,60,0.85)';
@@ -560,6 +594,7 @@ export default function App() {
       if (world.pendingDamage > 0 && exteriorNow && !player.dodging) {
         const dmg = world.pendingDamage;
         getAudio().hurt();
+        hurtFlashRef.current = Math.min(1, hurtFlashRef.current + dmg / 30 + 0.25);
         setGameState(prev => {
           if (!prev) return null;
           const hp = Math.max(0, prev.player.hp - dmg);
@@ -721,8 +756,10 @@ export default function App() {
           const vx = Math.cos(car.angle) * carVelRef.current * dtSec;
           const vy = Math.sin(car.angle) * carVelRef.current * dtSec;
 
-          // Buildings, other cars, live NPCs and closed gates stop the car hard.
-          const blockers = [...BUILDINGS, ...world.cars.filter(c => c !== car), ...world.visibleNpcs(), ...world.exteriorSolids()];
+          // Buildings, other cars and closed gates stop the car hard. Pedestrians
+          // are deliberately excluded: clipping one shoves them aside instead of
+          // bringing a two-tonne vehicle to a dead stop.
+          const blockers = [...BUILDINGS, ...world.cars.filter(c => c !== car), ...world.exteriorSolids()];
           let hit = false;
           if (!CollisionSystem.checkCollision({ x: car.pos.x + vx, y: car.pos.y }, car.size, blockers)) car.pos.x += vx;
           else hit = true;
@@ -741,6 +778,29 @@ export default function App() {
 
           // Player rides along.
           player.pos = { x: car.pos.x + car.size.x / 2 - player.size.x / 2, y: car.pos.y + car.size.y / 2 - player.size.y / 2 };
+
+          // Clipping a pedestrian knocks them out of the way. A fast hit is a
+          // crime (and messy); a slow nudge just staggers them.
+          const bumped = Math.abs(carVelRef.current) > 35 ? world.pedestrianHitBy(car.pos, car.size) : null;
+          if (bumped && now - pedHitRef.current > 500) {
+            pedHitRef.current = now;
+            const fastHit = Math.abs(carVelRef.current) > 150;
+            world.shoveNpc(
+              bumped.id,
+              car.pos.x + car.size.x / 2,
+              car.pos.y + car.size.y / 2,
+              220 + Math.abs(carVelRef.current) * 1.1,
+              fastHit ? 1.1 : 0.6
+            );
+            getAudio().hurt();
+            shakeRef.current = Math.max(shakeRef.current, fastHit ? 0.5 : 0.25);
+            if (fastHit) {
+              world.addGore(bumped.pos.x + bumped.size.x / 2, bumped.pos.y + bumped.size.y / 2, 'smear', 1);
+              world.commitCrime('vehicular assault', 0.34);
+              addToast('Hit and run', `You clipped ${bumped.name} and kept driving.`);
+              setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, did_roadkill: true } }) : prev);
+            }
+          }
 
           // Tire marks and dust while moving fast.
           const fast = Math.abs(carVelRef.current) > 90;
@@ -811,6 +871,14 @@ export default function App() {
           if (input.consumePressed('shift') && player.tryDodge(movement)) getAudio().step();
           player.update(movement, solids, dtSec);
           player.clampToWorld();
+          // A sprinting dodge shoulder-barges bystanders out of the way.
+          if (player.dodging) {
+            const near = world.pedestrianHitBy(player.pos, player.size);
+            if (near && now - pedHitRef.current > 400) {
+              pedHitRef.current = now;
+              world.shoveNpc(near.id, player.pos.x + player.size.x / 2, player.pos.y + player.size.y / 2, 190, 0.5);
+            }
+          }
           camera.update(player.pos);
           if (subSpec && subSpec.wobble > 0) {
             camera.pos.x += Math.sin(now / 180) * subSpec.wobble;
@@ -905,6 +973,8 @@ export default function App() {
           if (dist < INTERACT_RADIUS + 20 && now - bossHitCooldownRef.current > 1200) {
             bossHitCooldownRef.current = now;
             getAudio().hurt();
+            hurtFlashRef.current = Math.min(1, hurtFlashRef.current + bossSpec.damage / 30 + 0.3);
+            shakeRef.current = Math.max(shakeRef.current, 0.3);
             setGameState(prev => {
               if (!prev) return null;
               const hp = Math.max(0, prev.player.hp - bossSpec.damage);
@@ -986,6 +1056,23 @@ export default function App() {
       if (speedrunStartRef.current !== null) {
         const elapsed = now - speedrunStartRef.current;
         setSpeedrun(prev => (prev.active ? { ...prev, elapsed } : prev));
+      }
+
+      // Damage vignette and its decay, applied over whatever was drawn.
+      if (hurtFlashRef.current > 0.01) {
+        const vw = renderer.canvas.width;
+        const vh = renderer.canvas.height;
+        const grad = renderer.ctx.createRadialGradient(
+          vw / 2, vh / 2, Math.min(vw, vh) * 0.3,
+          vw / 2, vh / 2, Math.max(vw, vh) * 0.62
+        );
+        grad.addColorStop(0, 'rgba(180,0,0,0)');
+        grad.addColorStop(1, `rgba(190,10,10,${0.6 * hurtFlashRef.current})`);
+        renderer.ctx.save();
+        renderer.ctx.fillStyle = grad;
+        renderer.ctx.fillRect(0, 0, vw, vh);
+        renderer.ctx.restore();
+        hurtFlashRef.current = Math.max(0, hurtFlashRef.current - dt * 0.0022);
       }
 
       drawMinimap(camera);
@@ -2044,6 +2131,29 @@ export default function App() {
             }}
           >
             Audio: {getAudio().muted ? 'Muted' : 'On'}
+          </button>
+          <div className="volume-row">
+            <span className="volume-label">Volume</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(audioVolume * 100)}
+              onChange={(e) => {
+                const v = Number(e.target.value) / 100;
+                const a = getAudio();
+                a.setVolume(v);
+                if (v > 0 && a.muted) a.setMuted(false);
+                setAudioVolume(v);
+              }}
+            />
+            <span className="volume-value">{Math.round(audioVolume * 100)}%</span>
+          </div>
+          <button
+            className="pause-button grey"
+            onClick={() => void toggleFullscreen()}
+          >
+            {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           </button>
           <button
             className="pause-button purple"

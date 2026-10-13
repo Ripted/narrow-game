@@ -287,6 +287,32 @@ body {
 .pause-button.grey { border-color: #666; color: #999; }
 .pause-button.grey:hover { background: #666; color: white; }
 
+/* Volume slider row in the pause menu. */
+.volume-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(360px, 84vw);
+  padding: 4px 12px;
+  color: #999;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.volume-row input[type='range'] {
+  flex: 1;
+  accent-color: var(--color-neon-cyan, #00ffff);
+  cursor: pointer;
+}
+
+.volume-value {
+  min-width: 42px;
+  text-align: right;
+  color: #ddd;
+  font-variant-numeric: tabular-nums;
+}
+
 
 .hidden-tick {
   display: none;
