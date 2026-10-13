@@ -30,13 +30,12 @@ npm run dev          # dev server (default port 5173)
 
 ### Deploying to GitHub Pages
 
-The playable site is served from this branch: GitHub Pages publishes the repo
-root of `main`. The Vite page entry lives in `vite/index.html` (so the build
-output does not collide with the source tree) and `vite.config.ts` emits the
-bundle into the repo root (`index.html` + `assets/`) with relative asset URLs,
-which keep it working under the `/narrow-game/` subpath. After any change to
-`src/`, run `npm run build` and commit the regenerated `index.html` and
-`assets/` alongside the source, or the live site will not reflect it.
+GitHub Pages is set to the "GitHub Actions" source, so the site is published by
+`.github/workflows/deploy.yml`, which builds the project and uploads `dist/` on
+every push to `main`. `vite.config.ts` sets `base: '/narrow-game/'` because the
+site is served from the `/narrow-game/` subpath. Nothing under `dist/` is
+committed; pushing to `main` (or running the workflow manually) is enough to
+redeploy.
 
 ## The GTA direction
 

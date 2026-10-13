@@ -4,11 +4,9 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig({
-  // The page entry lives in vite/ so the build can be emitted into the repo
-  // root, which is where GitHub Pages serves this project from. Relative asset
-  // URLs keep it working under the /narrow-game/ subpath.
-  root: 'vite',
-  base: './',
+  // GitHub Pages serves this project from the /narrow-game/ subpath, so the
+  // production bundle must reference assets under that prefix.
+  base: '/narrow-game/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -27,11 +25,6 @@ export default defineConfig({
     allowedHosts: process.env.ALLOWED_HOSTS
       ? process.env.ALLOWED_HOSTS.split(',')
       : undefined,
-  },
-  build: {
-    // Emit into the repo root so the branch itself serves the playable site.
-    outDir: '../',
-    emptyOutDir: false,
   },
 });
 
