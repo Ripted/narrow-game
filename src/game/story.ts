@@ -1,4 +1,4 @@
-import { GameState, Quest, Achievement } from '../types';
+import { GameState, Quest, Achievement, BossSpec } from '../types';
 
 export const ACHIEVEMENTS: Achievement[] = [
   { id: 'first_steps', name: 'Newcomer No More', description: 'Talk to Hydo and learn the basics.' },
@@ -11,6 +11,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'found_admin_key', name: 'Key Holder', description: 'Dig up the rusty key in the Dead Zone.' },
   { id: 'speedrunner', name: 'Speedrunner', description: 'Finish a lap of the speedrun track.' },
   { id: 'ghost_buster', name: 'Ghost Buster', description: 'Defeat arrow_ghost in combat.' },
+  { id: 'polar_slain', name: 'Speedrun Denied', description: 'Defeat the Polar Shade in combat.' },
   { id: 'all_endings', name: 'Completionist', description: 'Reach any of the four endings.' },
   { id: 'interior_designer', name: 'Interior Designer', description: 'Step inside a building.' },
   { id: 'gatekeeper', name: 'Gatekeeper', description: 'Open the sealed gate in the Dead Zone.' },
@@ -119,6 +120,39 @@ export const QUEST_MARKERS: Record<string, { x: number; y: number; label: string
   'Follow the Goose': { x: 4300, y: 2300, label: 'The Goose, Docks' },
 };
 
+/**
+ * Boss-style encounters. Each is a regular NPC in the world that only starts
+ * fighting once its dialogue sets `startFlag`. The first is the story boss; the
+ * second is an optional speedrun-zone challenge that grants its own reward.
+ */
+export const BOSSES: BossSpec[] = [
+  {
+    npcId: 'arrow_ghost',
+    name: 'arrow_ghost',
+    maxHp: 60,
+    damage: 8,
+    startFlag: 'arrow_ghost_fight_started',
+    defeatedFlag: 'arrow_ghost_defeated',
+    achievementId: 'ghost_buster',
+    resolvesArcs: true,
+  },
+  {
+    npcId: 'polar',
+    name: 'The Polar Shade',
+    maxHp: 90,
+    damage: 10,
+    startFlag: 'polar_fight_started',
+    defeatedFlag: 'polar_defeated',
+    achievementId: 'polar_slain',
+    rewardItem: 'wrench',
+    rewardGold: 150,
+  },
+];
+
+export const BOSS_BY_NPC: Record<string, BossSpec> = Object.fromEntries(
+  BOSSES.map((b) => [b.npcId, b]),
+);
+
 export class StoryManager {
   /**
    * Applies quest progression based on flags and returns the updated
@@ -218,6 +252,7 @@ export class StoryManager {
     unlock('found_admin_key', state.flags.found_admin_key === true);
     unlock('speedrunner', state.flags.completed_speedrun === true);
     unlock('ghost_buster', state.flags.arrow_ghost_defeated === true);
+    unlock('polar_slain', state.flags.polar_defeated === true);
     unlock('all_endings', state.flags.game_ended === true);
     unlock('interior_designer', state.flags.entered_building === true);
     unlock('gatekeeper', state.flags.gate_deadzone_open === true);

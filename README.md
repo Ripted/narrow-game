@@ -60,14 +60,17 @@ Touch devices get an on-screen joystick and action buttons automatically.
   the character you are talking to.
 - **Collect** update fragments and other items, then **equip** weapons from the
   inventory (yes, the baguette is a weapon).
-- **Fight** `arrow_ghost` on the Narrow List. Open with `E`, watch both health
-  bars, and back off when yours drops.
+- **Fight** `arrow_ghost` on the Narrow List, or the Polar Shade on the
+  Speedrun Track. Open with `E`, watch both health bars, and back off when
+  yours drops.
 - **Take on the speedrun challenge** by touching the first timer in the
   Speedrun Track and racing to the second.
 - **Find secrets** scattered across the Meme Archives, Polish District and Dead
   Zone; each one unlocks an achievement toast.
 - **Save** at any time from the pause menu, or rely on autosave, which fires
-  every 30 seconds and on every zone change.
+  every 30 seconds and on every zone change. The save-slot manager shows each
+  slot's character, zone, playtime, gold and timestamp, and can export or
+  import a run as JSON.
 
 ## Zones
 
@@ -163,7 +166,6 @@ Ideas that would fit the current systems:
 
 - Sprite art in place of the procedural rectangles.
 - Free-text NPC chat with a local model.
-- Boss variety and a second combat encounter.
 - A shot at online leaderboards for the speedrun challenge.
 
 ## Contributing

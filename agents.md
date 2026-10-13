@@ -86,3 +86,29 @@ genre's excesses rather than reproducing them.
 3. Author strong language pre-bleeped; never ship an un-bleeped string.
 4. Satire targets the genre, not real individuals.
 5. Do not add multiplayer, and do not add a system that requires a server.
+
+## Saves
+
+`StateManager` (`src/game/state.ts`) owns three manual slots plus an autosave,
+all in `localStorage` under `narrow_arrow_*`. A `GameState` carries a
+`saveVersion`; `migrateSave` fills defaults for fields an older build omitted,
+so never read a freshly loaded state without normalising it first.
+
+Every save — manual or autosave — must include a `WorldSave` snapshot from
+`world.save()` (clock, NPC positions, opened chests, thrown levers, gates,
+killed enemies, weather, gore). Skipping it makes a load silently reset the
+world. `player.equipped` and `player.playtime` must also be written on save,
+otherwise loading reverts the weapon and zeroes the clock.
+
+The pause menu exposes the slot manager (`SaveMenu`), achievements
+(`AchievementsPanel`), and a "New Game" action that clears all slots.
+
+## Boss fights
+
+Bosses are data, not bespoke code. Add a `BossSpec` to `BOSSES` in
+`src/game/story.ts` (npcId, name, maxHp, startFlag, defeatedFlag,
+achievementId, optional rewardItem/rewardGold/resolvesArcs) and give the NPC a
+dialogue tree whose fight node sets `startFlag`. `App.tsx` derives the active
+boss from flags via `BOSS_BY_NPC`, so no per-boss branching is needed. Set
+`resolvesArcs: true` only on the final boss; other bosses end their own fight
+and leave the game running.

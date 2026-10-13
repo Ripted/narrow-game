@@ -386,11 +386,17 @@ export interface Quest {
 }
 
 export interface GameState {
+  /** Save-format version, so older saves can be migrated forward. */
+  saveVersion: number;
+  /** Wall-clock time this state was written, for the slot list. */
+  savedAt: number;
   player: {
     name: string;
     characterType: string;
     pos: Vector2;
     inventory: string[];
+    /** Item id currently equipped; persisted so loading keeps your weapon. */
+    equipped: string;
     hp: number;
     maxHp: number;
     gold: number;
@@ -404,6 +410,27 @@ export interface GameState {
   currentLocation: string;
   /** Snapshot of the mutable living-world state (clock, NPCs, chests, gates). */
   worldSave?: WorldSave;
+}
+
+/** A boss-style NPC fight: talking starts it, striking damages it. */
+export interface BossSpec {
+  /** NPC id that fights this encounter. */
+  npcId: string;
+  name: string;
+  maxHp: number;
+  /** Damage the boss deals per landed hit. */
+  damage: number;
+  /** Flag set when the fight begins. */
+  startFlag: string;
+  /** Flag set when the boss is defeated. */
+  defeatedFlag: string;
+  /** Achievement unlocked on victory. */
+  achievementId: string;
+  /** Optional loot granted on victory. */
+  rewardItem?: string;
+  rewardGold?: number;
+  /** Whether winning resolves the main story arcs (only the final boss does). */
+  resolvesArcs?: boolean;
 }
 
 export interface InventoryItem {

@@ -49,6 +49,40 @@ All notable changes to this project are documented here. The format is based on
 - The game failed to start because the renderer was created before the canvas
   mounted, leaving the player stuck on the character-select screen.
 
+## [0.2.0] - Save system hardening
+
+### Added
+
+- A save-slot manager in the pause menu: each slot shows the character, zone,
+  playtime, gold and timestamp, with load, delete, and overwrite confirmation.
+- Export/import of the current run as a JSON string, for backup or sharing.
+- An achievements panel listing every achievement with locked/unlocked state,
+  reachable from the pause menu and the ending screen.
+- A second boss encounter, the Polar Shade, on the Speedrun Track. Talking to
+  Polar can start the fight; winning drops the Heavy Wrench and 150 gold and
+  unlocks "Speedrun Denied".
+- A `saveVersion` field and a migration step, so saves written by older builds
+  load with sensible defaults instead of breaking.
+- A "New Game" action on the menu and pause screen that clears all slots.
+
+### Fixed
+
+- Manual saves now include the living-world snapshot (clock, NPCs, chests,
+  gates, killed enemies, weather), matching autosave. Previously a manual load
+  reset the world.
+- The equipped weapon is persisted, so loading no longer reverts to the
+  starting stick.
+- Playtime is restored on load, so the ending screen shows the real total.
+- The ending screen reports achievements out of the real total, not a hardcoded
+  `/11`.
+- Manual saves report a failure toast instead of silently doing nothing when
+  browser storage is full.
+
+### Changed
+
+- Boss encounters are data-driven (`BOSSES` in `src/game/story.ts`), so adding
+  another is a spec entry plus a dialogue tree.
+
 ## [0.0.0] - Initial
 
 - Project scaffold: world, NPCs, dialogue, and renderer.

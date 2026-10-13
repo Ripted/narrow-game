@@ -13,9 +13,9 @@ import { BUILDINGS } from './world/buildings';
 import { LOCATIONS, LOCATION_MINIMAP_COLORS } from './data/locations';
 import { DIALOGUE } from './data/characters';
 import { ITEMS, STARTING_ITEM } from './data/items';
-import { NPC as NpcType, DialogueNode, GameState, Vector2, Achievement, Interior, ShopEntry, Enemy, Car, SubstanceEffect, Appearance } from './types';
-import { StoryManager, QUEST_MARKERS } from './game/story';
-import { StateManager, SLOT_COUNT } from './game/state';
+import { NPC as NpcType, DialogueNode, GameState, Vector2, Achievement, Interior, ShopEntry, Enemy, Car, SubstanceEffect, Appearance, BossSpec } from './types';
+import { StoryManager, QUEST_MARKERS, BOSSES, BOSS_BY_NPC, ACHIEVEMENTS } from './game/story';
+import { StateManager, SLOT_COUNT, SAVE_VERSION, migrateSave } from './game/state';
 import { WorldRuntime } from './game/world';
 import { INTERACTIVES } from './world/interactives';
 import { drawGore } from './world/enemies';
@@ -24,6 +24,8 @@ import { AudioManager } from './audio';
 import { SUBSTANCES, SUBSTANCE_ITEM } from './data/substances';
 import { RADIO_STATIONS, applyLanguageFilter, GRAFFITI } from './data/humor';
 import { CharacterPreview } from './components/CharacterPreview';
+import { SaveMenu } from './components/SaveMenu';
+import { AchievementsPanel } from './components/AchievementsPanel';
 
 interface PlayableChar {
   id: string;
@@ -65,11 +67,14 @@ interface Ending {
 
 function newGameState(name: string, characterType: string, pos: Vector2 = PLAYER_START): GameState {
   return {
+    saveVersion: SAVE_VERSION,
+    savedAt: Date.now(),
     player: {
       name,
       characterType,
       pos,
       inventory: [STARTING_ITEM],
+      equipped: STARTING_ITEM,
       hp: 100,
       maxHp: 100,
       gold: 0,
@@ -85,20 +90,16 @@ function newGameState(name: string, characterType: string, pos: Vector2 = PLAYER
 
 /** Fills in fields missing from saves written by older builds. */
 function normalizeState(s: GameState): GameState {
+  const migrated = migrateSave(s);
+  if (!migrated) return newGameState(s?.player?.name || 'Newcomer', s?.player?.characterType || 'penguin');
+  // Keep the saved position/hp/etc. but guarantee every field exists.
   return {
-    ...s,
+    ...migrated,
     player: {
-      pos: PLAYER_START,
-      inventory: [STARTING_ITEM],
-      hp: 100,
-      maxHp: 100,
-      gold: 0,
-      playtime: 0,
-      ...s.player,
+      ...migrated.player,
+      inventory: migrated.player.inventory.length ? migrated.player.inventory : [STARTING_ITEM],
+      equipped: migrated.player.equipped || STARTING_ITEM,
     },
-    activeQuests: s.activeQuests || [],
-    completedQuests: s.completedQuests || [],
-    unlockedAchievements: s.unlockedAchievements || [],
   };
 }
 
@@ -126,10 +127,23 @@ export default function App() {
   );
   const [inputMode, setInputMode] = useState<'keyboard' | 'touch'>('keyboard');
   const [saveSlots, setSaveSlots] = useState(() => StateManager.slots());
+  const [showSaveMenu, setShowSaveMenu] = useState(false);
+  const [showAchievements, setShowAchievements] = useState(false);
+  const [bossFight, setBossFight] = useState<string | null>(null);
+  // Bumped whenever a run starts or a save loads, so the render loop rebuilds
+  // its engine even when the character type is unchanged.
+  const [runId, setRunId] = useState(0);
 
   const audioRef = useRef<AudioManager | null>(null);
   const playtimeRef = useRef(0);
   const lastAutosaveRef = useRef(0);
+  // Mirrors of React state the animation loop reads without re-subscribing.
+  const bossFightRef = useRef<string | null>(null);
+  const gameStateRef = useRef<GameState | null>(null);
+  const combatRef = useRef<{ active: boolean; hp: number; maxHp: number } | null>(null);
+  gameStateRef.current = gameState;
+  bossFightRef.current = bossFight;
+  combatRef.current = combat;
   // Latest dialogue for the animation loop, avoiding a loop restart per node.
   const dialogueRef = useRef<DialogueNode | null>(null);
   dialogueRef.current = currentDialogue;
@@ -188,9 +202,7 @@ export default function App() {
     return audioRef.current;
   }, []);
 
-  const startGame = (charId: string) => {
-    const char = CHARACTERS.find(c => c.id === charId)!;
-    const name = charId === 'custom' ? (customName || 'Newcomer') : char.name;
+  const resetRunRefs = () => {
     engineRef.current = null;
     worldRef.current = new WorldRuntime();
     activeInteriorRef.current = null;
@@ -199,24 +211,47 @@ export default function App() {
     setDrivingName(null);
     setInsideName(null);
     lastZoneRef.current = '';
+    lastAutosaveRef.current = performance.now();
+    setBossFight(null);
+    setCombat(null);
+    setSpeedrun({ active: false, elapsed: 0, best: null });
+    setRunId(n => n + 1);
+  };
+
+  const startGame = (charId: string) => {
+    const char = CHARACTERS.find(c => c.id === charId)!;
+    const name = charId === 'custom' ? (customName || 'Newcomer') : char.name;
+    resetRunRefs();
+    playtimeRef.current = 0;
     setEquippedItemId(STARTING_ITEM);
     setGameState(newGameState(name, charId));
     getAudio().blip();
   };
 
   const loadState = (saved: GameState) => {
-    engineRef.current = null;
-    worldRef.current = new WorldRuntime();
-    activeInteriorRef.current = null;
-    activeCarRef.current = null;
-    carVelRef.current = 0;
-    setDrivingName(null);
-    setInsideName(null);
-    lastZoneRef.current = '';
+    resetRunRefs();
     const normalized = normalizeState(saved);
-    worldRef.current.restore(normalized.worldSave);
+    // Restore playtime and equipment so a loaded run continues where it left off.
+    playtimeRef.current = normalized.player.playtime || 0;
+    setEquippedItemId(normalized.player.equipped || STARTING_ITEM);
+    worldRef.current!.restore(normalized.worldSave);
     setGameState(normalized);
+    // Re-arm an in-progress boss fight that was saved mid-encounter.
+    const activeBoss = BOSSES.find(
+      b => normalized.flags[b.startFlag] === true && normalized.flags[b.defeatedFlag] !== true,
+    );
+    if (activeBoss) {
+      setBossFight(activeBoss.npcId);
+      setCombat({ active: true, hp: activeBoss.maxHp, maxHp: activeBoss.maxHp });
+    }
     getAudio().blip();
+  };
+
+  /** Clears every saved slot and starts a fresh run from the menu. */
+  const newGame = (charId: string) => {
+    StateManager.clear();
+    setSaveSlots(StateManager.slots());
+    startGame(charId);
   };
 
   // Quest / achievement / ending progression.
@@ -257,6 +292,19 @@ export default function App() {
       setEnding(StoryManager.getEnding(gameState));
     }
   }, [gameState, addToast, getAudio]);
+
+  // Start a boss encounter as soon as its dialogue sets the start flag, and
+  // stop it once the boss is defeated (so talking again does not re-arm it).
+  useEffect(() => {
+    if (!gameState) return;
+    const active = BOSSES.find(
+      b => gameState.flags[b.startFlag] === true && gameState.flags[b.defeatedFlag] !== true,
+    );
+    setBossFight(prev => {
+      if (active) return active.npcId;
+      return prev;
+    });
+  }, [gameState?.flags]);
 
   // Playtime clock: commit accumulated time to state once per second.
   useEffect(() => {
@@ -528,8 +576,12 @@ export default function App() {
         }
       }
 
-      const fighting = gameState.flags.arrow_ghost_fight_started === true &&
-        gameState.flags.arrow_ghost_defeated !== true;
+      // A boss is active once its dialogue set the start flag and it is not yet
+      // defeated. The spec tells us which NPC, how hard it hits, and the reward.
+      const bossSpec: BossSpec | undefined = bossFightRef.current
+        ? BOSS_BY_NPC[bossFightRef.current]
+        : undefined;
+      const fighting = !!bossSpec;
 
       let nearest: any = null;
       let nearestDist = Infinity;
@@ -645,7 +697,7 @@ export default function App() {
           if (input.consumePressed('e') || input.consumeAction() === 'interact' || input.consumePressed('escape')) exitCar();
         }
         // Recover from a destroyed car.
-        if (gameState.player.hp <= 0 && activeCarRef.current) exitCar();
+        if ((gameStateRef.current?.player.hp ?? 0) <= 0 && activeCarRef.current) exitCar();
 
         setInteractPrompt(driving ? 'WASD to drive · E to exit' : null);
 
@@ -717,7 +769,7 @@ export default function App() {
           const label = nearest.type === 'building'
             ? BUILDING_LABELS[nearest.buildingKind as keyof typeof BUILDING_LABELS]
             : nearest.name;
-          if (nearest.id === 'arrow_ghost' && fighting) {
+          if (nearest.id === bossSpec?.npcId) {
             setInteractPrompt('Press E to ATTACK');
           } else if (nearest.type === 'enemy') {
             setInteractPrompt(nearest.enemyKind === 'police' ? 'Press E to resist arrest' : 'Press E to attack');
@@ -755,7 +807,7 @@ export default function App() {
               getAudio().achievement();
               setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, killed_hostile: true } }) : prev);
             }
-          } else if (fighting && nearest && nearest.id === 'arrow_ghost') {
+          } else if (fighting && nearest && nearest.id === bossSpec!.npcId) {
             strikeBoss();
           } else if (nearest) {
             applyInteract(nearest);
@@ -767,15 +819,15 @@ export default function App() {
         }
 
         // Boss retaliation.
-        const boss = world.npcById('arrow_ghost');
-        if (fighting && !paused && boss) {
+        const boss = bossSpec ? world.npcById(bossSpec.npcId) : undefined;
+        if (fighting && !paused && boss && bossSpec) {
           const dist = Math.hypot(player.pos.x - boss.pos.x, player.pos.y - boss.pos.y);
           if (dist < INTERACT_RADIUS + 20 && now - bossHitCooldownRef.current > 1200) {
             bossHitCooldownRef.current = now;
             getAudio().hurt();
             setGameState(prev => {
               if (!prev) return null;
-              const hp = Math.max(0, prev.player.hp - 8);
+              const hp = Math.max(0, prev.player.hp - bossSpec.damage);
               if (hp <= 0) {
                 return { ...prev, player: { ...prev.player, hp: 0 }, flags: { ...prev.flags, game_ended: true } };
               }
@@ -808,7 +860,7 @@ export default function App() {
         }
 
         // Record that the player has seen nightfall.
-        if (world.night && gameState.flags.saw_night !== true) {
+        if (world.night && gameStateRef.current?.flags.saw_night !== true) {
           setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, saw_night: true } }) : prev);
         }
 
@@ -826,8 +878,8 @@ export default function App() {
         drawSkids(renderer.ctx);
         WORLD_OBJECTS.forEach(obj => renderer.drawEntity(obj, camera, undefined, dt));
         for (const npc of world.visibleNpcs()) {
-          const isBoss = npc.id === 'arrow_ghost';
-          renderer.drawEntity(npc, camera, isBoss && fighting ? { hp: combat?.hp ?? 60, maxHp: combat?.maxHp ?? 60 } : undefined, dt);
+          const isBoss = npc.id === bossSpec?.npcId;
+          renderer.drawEntity(npc, camera, isBoss && fighting ? { hp: combat?.hp ?? bossSpec!.maxHp, maxHp: combat?.maxHp ?? bossSpec!.maxHp } : undefined, dt);
         }
         for (const c of world.cars) renderer.drawCar(c, camera, now / 1000);
         for (const e of world.enemies) renderer.drawEnemy(e, camera, now / 1000);
@@ -964,7 +1016,7 @@ export default function App() {
         if (!prev) return prev;
         const snapshot: GameState = {
           ...prev,
-          player: { ...prev.player, pos, playtime: playtimeRef.current },
+          player: { ...prev.player, pos, playtime: playtimeRef.current, equipped: equippedItemId },
           worldSave: getWorld().save(),
         };
         StateManager.autosave(snapshot);
@@ -973,21 +1025,50 @@ export default function App() {
     }
 
     function strikeBoss() {
+      const spec = bossFightRef.current ? BOSS_BY_NPC[bossFightRef.current] : undefined;
+      if (!spec) return;
       const item = ITEMS[equippedItemId];
       const dmg = item?.weapon ? (item.damage || 4) : 3;
       getAudio().hit();
-      setCombat(prev => {
-        const maxHp = prev?.maxHp ?? 60;
-        const hp = Math.max(0, (prev?.hp ?? 60) - dmg);
-        if (hp <= 0) {
-          setGameState(gs => gs ? ({
-            ...gs,
-            flags: { ...gs.flags, arrow_ghost_defeated: true, all_arcs_resolved: true, game_ended: true },
-          }) : null);
-          getAudio().achievement();
+      const prev = combatRef.current;
+      const maxHp = prev?.maxHp ?? spec.maxHp;
+      const hp = Math.max(0, (prev?.hp ?? spec.maxHp) - dmg);
+      const next = { active: true, hp, maxHp };
+      combatRef.current = next;
+      setCombat(next);
+      if (hp <= 0) {
+        // Victory: flag it, grant the reward, and end the fight. Guard on the
+        // boss still being active so a double-invoked update cannot double-pay.
+        getAudio().achievement();
+        if (bossFightRef.current === spec.npcId) {
+          bossFightRef.current = null;
+          setBossFight(null);
+          setGameState(gs => {
+            if (!gs || gs.flags[spec.defeatedFlag] === true) return gs;
+            const flags: Record<string, any> = {
+              ...gs.flags,
+              [spec.defeatedFlag]: true,
+            };
+            if (spec.resolvesArcs) {
+              flags.all_arcs_resolved = true;
+              flags.game_ended = true;
+            }
+            const inventory = spec.rewardItem && !gs.player.inventory.includes(spec.rewardItem)
+              ? [...gs.player.inventory, spec.rewardItem]
+              : gs.player.inventory;
+            return {
+              ...gs,
+              flags,
+              player: { ...gs.player, inventory, gold: gs.player.gold + (spec.rewardGold || 0) },
+            };
+          });
+          if (spec.rewardItem) {
+            addToast('Boss defeated', `${spec.name} dropped the ${ITEMS[spec.rewardItem]?.name || spec.rewardItem}.`);
+          } else {
+            addToast('Boss defeated', `${spec.name} is down.`);
+          }
         }
-        return { active: true, hp, maxHp };
-      });
+      }
     }
 
     function applyInteract(obj: any) {
@@ -1011,8 +1092,9 @@ export default function App() {
           if (npc.id === 'hydo') {
             setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, talked_to_hydo: true } }) : null);
           }
-          if (npc.id === 'arrow_ghost') {
-            setCombat(prev => prev ?? { active: true, hp: 60, maxHp: 60 });
+          if (BOSS_BY_NPC[npc.id]) {
+            const spec = BOSS_BY_NPC[npc.id];
+            setCombat(prev => prev ?? { active: true, hp: spec.maxHp, maxHp: spec.maxHp });
           }
         }
         return;
@@ -1188,7 +1270,7 @@ export default function App() {
       window.removeEventListener('resize', onResize);
       unsubscribeMode();
     };
-  }, [gameState?.player.characterType, isPaused, ending, equippedItemId, combat?.hp]);
+  }, [gameState?.player.characterType, runId, isPaused, ending, equippedItemId, combat?.hp]);
 
   const handleDialogueOption = (nextNodeId: string) => {
     const dialogueSet = DIALOGUE[
@@ -1343,21 +1425,62 @@ export default function App() {
     getAudio().pickup();
   };
 
-  const manualSave = (slot: number) => {
-    if (!gameState) return;
+  const buildSnapshot = (): GameState | null => {
+    if (!gameState) return null;
     const engine = engineRef.current;
-    const snapshot: GameState = {
+    return {
       ...gameState,
+      saveVersion: SAVE_VERSION,
       player: {
         ...gameState.player,
         pos: engine ? engine.player.pos : gameState.player.pos,
         playtime: playtimeRef.current,
+        equipped: equippedItemId,
       },
+      // Manual saves must persist the living world too, not just autosave.
+      worldSave: getWorld().save(),
     };
-    StateManager.saveSlot(slot, snapshot);
+  };
+
+  const manualSave = (slot: number) => {
+    const snapshot = buildSnapshot();
+    if (!snapshot) return;
+    const ok = StateManager.saveSlot(slot, snapshot);
+    if (!ok) {
+      addToast('Save failed', 'Browser storage is full or unavailable.');
+      getAudio().hurt();
+      return;
+    }
     setSaveSlots(StateManager.slots());
     addToast('Game Saved', `Saved to slot ${slot + 1}.`);
     getAudio().blip();
+  };
+
+  const deleteSlot = (slot: number) => {
+    StateManager.clearSlot(slot);
+    setSaveSlots(StateManager.slots());
+    addToast('Slot Cleared', `Slot ${slot + 1} is now empty.`);
+  };
+
+  const exportSave = () => {
+    const snapshot = buildSnapshot();
+    if (!snapshot) return '';
+    const text = StateManager.exportState(snapshot);
+    // Best-effort copy to the clipboard for convenience.
+    navigator.clipboard?.writeText(text).catch(() => {});
+    addToast('Save Exported', 'Current run copied to the text box (and clipboard).');
+    return text;
+  };
+
+  const importSave = (text: string) => {
+    const imported = StateManager.importState(text);
+    if (!imported) {
+      addToast('Import failed', 'That is not a valid save.');
+      return false;
+    }
+    loadState(imported);
+    addToast('Save Imported', 'Loaded the pasted run.');
+    return true;
   };
 
   const equipBestWeapon = () => {
@@ -1379,6 +1502,7 @@ export default function App() {
     const seconds = Math.floor(playtimeRef.current / 1000);
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
+    const unlockedCount = stats.unlockedAchievements.length;
     return (
       <div className="select-screen">
         <h1 className="select-title" style={{ color: 'var(--color-neon-orange)' }}>Game Over</h1>
@@ -1388,16 +1512,28 @@ export default function App() {
           <div>Character: {stats.player.name}</div>
           <div>Playtime: {mins}m {secs}s</div>
           <div>Fragments: {stats.flags.fragments_collected || 0}/3</div>
-          <div>Achievements: {stats.unlockedAchievements.length}/11</div>
+          <div>Achievements: {unlockedCount}/{ACHIEVEMENTS.length}</div>
           <div>Quests completed: {stats.completedQuests.length}</div>
         </div>
-        <button
-          className="pause-button cyan"
-          style={{ width: 'auto', padding: '14px 48px', fontSize: 20 }}
-          onClick={() => window.location.reload()}
-        >
-          Play Again
-        </button>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            className="pause-button cyan"
+            style={{ width: 'auto', padding: '14px 48px', fontSize: 20 }}
+            onClick={() => window.location.reload()}
+          >
+            Play Again
+          </button>
+          <button
+            className="pause-button purple"
+            style={{ width: 'auto', padding: '14px 32px', fontSize: 20 }}
+            onClick={() => setShowAchievements(true)}
+          >
+            Achievements
+          </button>
+        </div>
+        {showAchievements && (
+          <AchievementsPanel state={stats} onClose={() => setShowAchievements(false)} />
+        )}
       </div>
     );
   }
@@ -1463,6 +1599,9 @@ export default function App() {
             )}
 
             <button className="menu-play" onClick={beginRun}>Play as {preview.name}</button>
+            <button className="menu-newgame" onClick={() => newGame(preview.id)}>
+              New Game (clears saves)
+            </button>
             <div className="menu-hint">Double-click any card to jump straight in</div>
           </aside>
         </div>
@@ -1527,9 +1666,9 @@ export default function App() {
         )}
       </div>
 
-      {combat && speedrun.active === false && gameState.flags.arrow_ghost_fight_started && (
+      {combat && bossFight && BOSS_BY_NPC[bossFight] && (
         <div className="boss-bar">
-          <div className="boss-label">arrow_ghost</div>
+          <div className="boss-label">{BOSS_BY_NPC[bossFight].name}</div>
           <div className="hud-hp-bar boss">
             <div style={{ width: `${(combat.hp / combat.maxHp) * 100}%` }} />
           </div>
@@ -1749,11 +1888,17 @@ export default function App() {
         <div className="pause-overlay">
           <h2 className="text-4xl font-bold text-neon-orange mb-6 uppercase tracking-widest">Paused</h2>
           <button className="pause-button cyan" onClick={() => setIsPaused(false)}>Resume</button>
+          <button className="pause-button gold" onClick={() => setShowSaveMenu(true)}>
+            Save / Load Slots
+          </button>
           {[0, 1, 2].slice(0, SLOT_COUNT).map(slot => (
             <button key={slot} className="pause-button gold" onClick={() => manualSave(slot)}>
-              Save to Slot {slot + 1}
+              Quick Save → Slot {slot + 1}
             </button>
           ))}
+          <button className="pause-button purple" onClick={() => setShowAchievements(true)}>
+            Achievements ({gameState.unlockedAchievements.length}/{ACHIEVEMENTS.length})
+          </button>
           <button className="pause-button purple" onClick={() => setShowInventory(v => !v)}>
             Toggle Inventory
           </button>
@@ -1765,6 +1910,18 @@ export default function App() {
             onClick={() => { setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, game_ended: true } }) : null); }}
           >
             Quit to Ending
+          </button>
+          <button
+            className="pause-button grey"
+            onClick={() => {
+              if (window.confirm('Start a new game? This clears all save slots.')) {
+                setShowSaveMenu(false);
+                setIsPaused(false);
+                newGame(gameState.player.characterType);
+              }
+            }}
+          >
+            New Game (clears saves)
           </button>
           <button
             className="pause-button grey"
@@ -1785,6 +1942,23 @@ export default function App() {
             Radio: {radioOn ? 'On' : 'Off'}
           </button>
         </div>
+      )}
+
+      {isPaused && showSaveMenu && (
+        <SaveMenu
+          slots={saveSlots}
+          current={gameState}
+          onSave={manualSave}
+          onLoad={loadState}
+          onDelete={deleteSlot}
+          onExport={exportSave}
+          onImport={importSave}
+          onClose={() => setShowSaveMenu(false)}
+        />
+      )}
+
+      {isPaused && showAchievements && (
+        <AchievementsPanel state={gameState} onClose={() => setShowAchievements(false)} />
       )}
 
       {mode === 'keyboard' && (

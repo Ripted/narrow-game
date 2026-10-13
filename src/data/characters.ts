@@ -265,5 +265,34 @@ export const DIALOGUE: Record<string, DialogueNode[]> = {
         state.flags.goose_followed = true;
       }
     }
+  ],
+  polar_main: [
+    {
+      id: 'polar_1',
+      text: 'you are on my route. nobody is on my route.',
+      options: [
+        { text: 'What route?', nextNodeId: 'polar_2' },
+        { text: 'Make me move.', nextNodeId: 'polar_fight' }
+      ]
+    },
+    {
+      id: 'polar_2',
+      text: 'the only route. start to finish, no detours, no mercy. now move or be moved.',
+      options: [
+        { text: 'Fine. Fight me.', nextNodeId: 'polar_fight' },
+        { text: 'Understood.', nextNodeId: 'polar_3' }
+      ]
+    },
+    {
+      id: 'polar_3',
+      text: 'smart. the shade remembers that.'
+    },
+    {
+      id: 'polar_fight',
+      text: 'finally. press E when close to strike. this one hits harder than the ghost.',
+      onComplete: (state) => {
+        state.flags.polar_fight_started = true;
+      }
+    }
   ]
 };
