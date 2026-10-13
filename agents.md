@@ -28,6 +28,14 @@ npm run dev          # dev server (default port 5173)
 
 `npm run build` must pass with zero TypeScript errors before committing.
 
+### Deploying to GitHub Pages
+
+The playable site is served from this branch: GitHub Pages is configured to
+publish the `docs/` folder of `main`. `vite.config.ts` sets `base: './'` and
+`build.outDir: 'docs'`, so a production build emits relative asset URLs into
+`docs/`. After any change to `src/`, run `npm run build` and commit the updated
+`docs/` output alongside the source, or the live site will not reflect it.
+
 ## The GTA direction
 
 The game is shifting toward a satirical open-world crime sandbox — "GTA in the
