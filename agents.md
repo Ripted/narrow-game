@@ -30,11 +30,13 @@ npm run dev          # dev server (default port 5173)
 
 ### Deploying to GitHub Pages
 
-The playable site is served from this branch: GitHub Pages is configured to
-publish the `docs/` folder of `main`. `vite.config.ts` sets `base: './'` and
-`build.outDir: 'docs'`, so a production build emits relative asset URLs into
-`docs/`. After any change to `src/`, run `npm run build` and commit the updated
-`docs/` output alongside the source, or the live site will not reflect it.
+The playable site is served from this branch: GitHub Pages publishes the repo
+root of `main`. The Vite page entry lives in `vite/index.html` (so the build
+output does not collide with the source tree) and `vite.config.ts` emits the
+bundle into the repo root (`index.html` + `assets/`) with relative asset URLs,
+which keep it working under the `/narrow-game/` subpath. After any change to
+`src/`, run `npm run build` and commit the regenerated `index.html` and
+`assets/` alongside the source, or the live site will not reflect it.
 
 ## The GTA direction
 

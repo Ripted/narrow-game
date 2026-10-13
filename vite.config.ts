@@ -4,8 +4,10 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig({
-  // GitHub Pages serves this project from the /narrow-game/ subpath, so emit
-  // relative asset URLs that resolve wherever the site is hosted.
+  // The page entry lives in vite/ so the build can be emitted into the repo
+  // root, which is where GitHub Pages serves this project from. Relative asset
+  // URLs keep it working under the /narrow-game/ subpath.
+  root: 'vite',
   base: './',
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -27,9 +29,9 @@ export default defineConfig({
       : undefined,
   },
   build: {
-    // Committed so the branch itself serves the playable site on GitHub Pages.
-    outDir: 'docs',
-    emptyOutDir: true,
+    // Emit into the repo root so the branch itself serves the playable site.
+    outDir: '../',
+    emptyOutDir: false,
   },
 });
 

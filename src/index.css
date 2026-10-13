@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* The Vite root is vite/, so tell Tailwind where the app source actually is. */
+@source "../src";
+
 @theme {
   --color-game-bg: #0d0d0d;
   --color-neon-cyan: #00ffff;
