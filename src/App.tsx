@@ -744,8 +744,11 @@ export default function App() {
         if (!inDialogue && !paused) {
           if (dt > 0) playtimeRef.current += dt;
 
-          const throttle = movement.x;          // W/S: forward / reverse
-          const steerInput = movement.y;        // A/D: left / right
+          // getMovement() returns x = left/right (A/D, arrow keys) and
+          // y = up/down (W/S), with y already negated for "up". Driving needs
+          // the opposite mapping: W/S is throttle and A/D is steering.
+          const throttle = -movement.y;         // W: forward, S: reverse
+          const steerInput = movement.x;        // A: left, D: right
           const speed = carVelRef.current;
 
           // Longitudinal: engine force, rolling drag and a speed cap. Reverse

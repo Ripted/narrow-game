@@ -48,6 +48,21 @@ bundled stylesheet). The placeholder also turns a failed load into a readable
 error instead of a white screen. Do not remove the inline background or the
 boot fallback.
 
+### Controls and the movement vector
+
+`InputHandler.getMovement()` returns a vector in *screen* space: `x` is
+left/right (A/D) and `y` is up/down with `y` already negated for "up" (W gives
+`y = -1`). Walking uses it as-is. Driving must **not**: it needs W/S for
+throttle and A/D for steering, so `src/App.tsx` maps
+
+```ts
+const throttle = -movement.y;    // W forward, S reverse
+const steerInput = movement.x;   // A left, D right
+```
+
+Getting this backwards makes the car appear dead: `movement.x` is zero unless
+A/D are held, so W does nothing while A/D silently acts as throttle.
+
 ## The GTA direction
 
 The game is shifting toward a satirical open-world crime sandbox — "GTA in the
