@@ -14,7 +14,8 @@ export class Player implements Entity {
   color: string;
   type: 'player' = 'player';
   appearance?: Appearance;
-  speed: number = 5;
+  /** Pixels per second; the per-frame step is scaled by the frame delta. */
+  speed: number = 300;
 
   /** Dodge roll: brief burst of speed with invulnerability and a faint trail. */
   dodgeTimer = 0;
@@ -48,15 +49,19 @@ export class Player implements Entity {
   /**
    * Moves with axis-separated sliding: if the full step is blocked, each axis is
    * tried alone so the player slides along walls instead of sticking.
+   *
+   * `speed` is in pixels per second, so the step scales with `dtSec`. Callers
+   * that omit `dtSec` get the old per-frame step, which keeps one-off callers
+   * (tests, teleports) working.
    */
-  update(movement: Vector2, solids: any[], dtSec = 0) {
+  update(movement: Vector2, solids: any[], dtSec = 1 / 60) {
     if (this.dodgeCooldown > 0) this.dodgeCooldown -= dtSec;
     let move: Vector2 = movement;
-    let dist = this.speed;
+    let dist = this.speed * dtSec;
     if (this.dodgeTimer > 0) {
       this.dodgeTimer -= dtSec;
       move = this.dodgeDir;
-      dist = this.speed * 2.6;
+      dist = this.speed * 2.6 * dtSec;
     }
     if (this.dodgeTimer <= 0 && this.trail.length) this.trail.shift();
 

@@ -28,6 +28,28 @@ npm run dev          # dev server (default port 5173)
 
 `npm run build` must pass with zero TypeScript errors before committing.
 
+`npx tsx scripts/verify-framerate.ts` checks that movement and camera follow
+are frame-rate independent. It fails if a step is ever applied per-frame
+instead of per-second.
+
+### Time-based motion
+
+Anything that moves over time must scale by the frame delta, never by a fixed
+per-frame step. `player.update(movement, solids, dtSec)` and
+`camera.update(pos, dtSec)` take the delta in seconds; the game loop passes the
+clamped `dtSec`. Speeds are therefore expressed per second (`player.speed` is
+300 px/s). A per-frame step makes the game run in slow motion on a slow machine
+and fast-forward on a fast one, and it is the easiest way to reintroduce a bug
+that the framerate script exists to catch.
+
+### Device pixel ratio
+
+The canvas is sized `cssPixels * min(2, devicePixelRatio)` and the context is
+scaled to match, so vector art stays crisp on HiDPI screens. All game logic —
+camera viewport, weather, minimap — works in CSS pixels, reached through
+`renderer.cssWidth` / `renderer.cssHeight`. Do not read `canvas.width` for
+layout; that is the backing store and is larger than the viewport on HiDPI.
+
 ### Deploying to GitHub Pages
 
 GitHub Pages is set to the "GitHub Actions" source, so the site is published by

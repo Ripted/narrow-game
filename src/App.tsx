@@ -205,7 +205,9 @@ export default function App() {
 
   const addToast = useCallback((title: string, description: string) => {
     const id = ++toastIdRef.current;
-    setToasts(prev => [...prev, { id, title, description }]);
+    // Keep the stack short: a crime spree can log several events in a frame,
+    // and unbounded toasts march off the top of the screen.
+    setToasts(prev => [...prev, { id, title, description }].slice(-3));
     window.setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 4200);
@@ -406,10 +408,11 @@ export default function App() {
       const char = CHARACTERS.find(c => c.id === gameState.player.characterType) || CHARACTERS[0];
       const player = new Player(gameState.player.name, char.color, gameState.player.pos, char.appearance);
       const canvas = canvasRef.current;
+      const renderer = new Renderer(canvas);
       engineRef.current = {
-        renderer: new Renderer(canvas),
+        renderer,
         input: new InputHandler(),
-        camera: new Camera(canvas.width, canvas.height),
+        camera: new Camera(renderer.cssWidth, renderer.cssHeight),
         player,
       };
     }
@@ -422,10 +425,10 @@ export default function App() {
 
     const onResize = () => {
       renderer.resize();
-      camera.resize(window.innerWidth, window.innerHeight);
+      camera.resize(renderer.cssWidth, renderer.cssHeight);
     };
     window.addEventListener('resize', onResize);
-    camera.resize(window.innerWidth, window.innerHeight);
+    camera.resize(renderer.cssWidth, renderer.cssHeight);
 
     const drawMinimap = (cam: Camera) => {
       const mm = minimapRef.current;
@@ -598,7 +601,7 @@ export default function App() {
       const dt = now - lastFrame;
       lastFrame = now;
       const world = getWorld();
-      world.setViewport(renderer.canvas.width, renderer.canvas.height);
+      world.setViewport(renderer.cssWidth, renderer.cssHeight);
       const dtSec = Math.min(dt, 100) / 1000;
       const exteriorNow = !activeInteriorRef.current;
       world.update(dtSec, exteriorNow ? { x: player.pos.x + player.size.x / 2, y: player.pos.y + player.size.y / 2 } : undefined);
@@ -626,7 +629,9 @@ export default function App() {
       if (world.crimeEvents.length) {
         const events = world.crimeEvents.splice(0, world.crimeEvents.length);
         for (const ev of events) {
-          if (getAudio) getAudio().hurt();
+          // A low blip, not the damage sting: committing a crime is a log
+          // entry, and the hurt sound reads as "you just got hit".
+          if (getAudio) getAudio().blip();
           const label = ev.replace(/_/g, ' ');
           if (wantedRef.current < world.wanted.level) {
             addToast(`Wanted ★${world.wanted.level}`, `You committed: ${label}.`);
@@ -697,7 +702,7 @@ export default function App() {
           if (dt > 0) playtimeRef.current += dt;
           const movement = input.getMovement();
           const roomSolids = interior.furnitures.map(f => ({ pos: { x: f.x, y: f.y }, size: { x: f.w, y: f.h } }));
-          player.update(movement, roomSolids);
+          player.update(movement, roomSolids, dtSec);
           player.clampToRoom(interior.width, interior.height);
           // Rooms are smaller than the viewport, so frame the room instead of
           // following the player.
@@ -853,13 +858,16 @@ export default function App() {
             snd.engine(pitch);
           }
 
-          camera.update(player.pos);
-          if (input.consumePressed('e') || input.consumeAction() === 'interact' || input.consumePressed('escape')) exitCar();
+          camera.update(player.pos, dtSec);
+          // E exits the car; ESC pauses, as it does on foot. Exit-to-car on ESC
+          // was inconsistent and left no way to pause while driving.
+          if (input.consumePressed('e') || input.consumeAction() === 'interact') exitCar();
+          if (input.consumePressed('escape')) setIsPaused(true);
         }
         // Recover from a destroyed car.
         if ((gameStateRef.current?.player.hp ?? 0) <= 0 && activeCarRef.current) exitCar();
 
-        setInteractPrompt(driving ? 'WASD to drive · E to exit' : null);
+        setInteractPrompt(driving ? 'W/S to drive · E to exit' : null);
 
         // ---- Render while driving ----
         renderer.clear();
@@ -898,7 +906,7 @@ export default function App() {
               world.shoveNpc(near.id, player.pos.x + player.size.x / 2, player.pos.y + player.size.y / 2, 190, 0.5);
             }
           }
-          camera.update(player.pos);
+          camera.update(player.pos, dtSec);
           if (subSpec && subSpec.wobble > 0) {
             camera.pos.x += Math.sin(now / 180) * subSpec.wobble;
             camera.pos.y += Math.cos(now / 140) * subSpec.wobble;
@@ -1066,7 +1074,7 @@ export default function App() {
           renderer.ctx.save();
           renderer.ctx.globalAlpha = Math.max(0, Math.min(1, subEff.remaining / 2));
           renderer.ctx.fillStyle = spec.tint;
-          renderer.ctx.fillRect(0, 0, renderer.canvas.width, renderer.canvas.height);
+          renderer.ctx.fillRect(0, 0, renderer.cssWidth, renderer.cssHeight);
           renderer.ctx.restore();
         }
       }
@@ -1079,8 +1087,8 @@ export default function App() {
 
       // Damage vignette and its decay, applied over whatever was drawn.
       if (hurtFlashRef.current > 0.01) {
-        const vw = renderer.canvas.width;
-        const vh = renderer.canvas.height;
+        const vw = renderer.cssWidth;
+        const vh = renderer.cssHeight;
         const grad = renderer.ctx.createRadialGradient(
           vw / 2, vh / 2, Math.min(vw, vh) * 0.3,
           vw / 2, vh / 2, Math.max(vw, vh) * 0.62
@@ -1144,7 +1152,7 @@ export default function App() {
       carSpeedRef.current = 0;
       setCarSpeed(0);
       setDrivingName(car.name);
-      setInteractPrompt('WASD to drive · E to exit');
+      setInteractPrompt('W/S to drive · E to exit');
       getAudio().interact();
       const w = getWorld();
       w.setDrivenCar(car.id);
@@ -1474,9 +1482,14 @@ export default function App() {
       }
     }
 
+    // Zone changes trigger an autosave, but roaming inside one zone does not.
+    // A periodic save means a closed tab or a crash costs at most this window.
+    const autosaveInterval = window.setInterval(() => autosave(player.pos), 20000);
+
     loop();
     return () => {
       cancelAnimationFrame(animationFrameId);
+      window.clearInterval(autosaveInterval);
       window.removeEventListener('resize', onResize);
       unsubscribeMode();
     };
@@ -1533,6 +1546,22 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [currentDialogue, gameState]);
+
+  // ESC resumes from the pause overlay, matching the key that opened it. The
+  // guard keeps it from closing a panel stacked on top; ESC there closes the
+  // panel instead.
+  useEffect(() => {
+    if (!isPaused || showSaveMenu || showAchievements) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        engineRef.current?.input.consumePressed('escape');
+        setIsPaused(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isPaused, showSaveMenu, showAchievements]);
 
   // Close the shop on E / Escape.
   useEffect(() => {
@@ -2208,7 +2237,9 @@ export default function App() {
 
       {mode === 'keyboard' && (
         <div className="controls-hint">
-          WASD move · E interact · Q quests · I inventory · ESC pause
+          {drivingName
+            ? 'W/S throttle · A/D steer · E exit car · ESC pause'
+            : 'WASD move · E interact · Q quests · I inventory · ESC pause'}
         </div>
       )}
 

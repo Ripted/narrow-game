@@ -13,6 +13,9 @@ export class Renderer {
   canvas: HTMLCanvasElement;
   sprites = new EntitySpriteSystem();
   environment = new EnvironmentRenderer();
+  /** Viewport size in CSS pixels, which is what the game logic works in. */
+  cssWidth = 0;
+  cssHeight = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -21,8 +24,19 @@ export class Renderer {
   }
 
   resize() {
-    this.canvas.width = window.innerWidth;
-    this.canvas.height = window.innerHeight;
+    // Render at the device pixel ratio so vector art and text stay crisp on
+    // HiDPI/Retina screens, but expose CSS-pixel dimensions to the rest of the
+    // game: the camera, weather and HUD overlays all work in CSS pixels.
+    // Capped at 2 because cost grows with the square of the ratio, and 3x/4x
+    // phone screens gain little visible sharpness for 9-16x the fill work.
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cssW = window.innerWidth;
+    const cssH = window.innerHeight;
+    this.cssWidth = cssW;
+    this.cssHeight = cssH;
+    this.canvas.width = Math.round(cssW * dpr);
+    this.canvas.height = Math.round(cssH * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   /** True when the given world-space rect intersects the camera viewport. */
@@ -42,6 +56,8 @@ export class Renderer {
   }
 
   clear() {
+    // Clears the full backing store, which is larger than the CSS viewport when
+    // the device pixel ratio is above 1.
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
