@@ -3,7 +3,11 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById('root')!;
+// Drop the pre-boot placeholder so React owns the container outright.
+document.getElementById('boot')?.remove();
+
+createRoot(rootEl).render(
   <StrictMode>
     <App />
   </StrictMode>,

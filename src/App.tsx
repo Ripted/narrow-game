@@ -10,7 +10,8 @@ import { APPEARANCES } from './data/appearances';
 import { WORLD_OBJECTS } from './world/objects';
 import { ROADS, PROPS } from './world/props';
 import { BUILDINGS } from './world/buildings';
-import { LOCATIONS, LOCATION_MINIMAP_COLORS } from './data/locations';
+import { WATER_SOLIDS } from './world/terrain';
+import { LOCATIONS, LOCATION_MINIMAP_COLORS, LAND_FEATURES, WATER_FEATURES } from './data/locations';
 import { DIALOGUE } from './data/characters';
 import { ITEMS, STARTING_ITEM } from './data/items';
 import { NPC as NpcType, DialogueNode, GameState, Vector2, Achievement, Interior, ShopEntry, Enemy, Car, SubstanceEffect, Appearance, BossSpec } from './types';
@@ -464,10 +465,25 @@ export default function App() {
 
       const sx = w / MAP_WIDTH;
       const sy = h / MAP_HEIGHT;
+
+      // Ocean base, then the landmasses, then the rivers and lakes.
+      ctx.fillStyle = '#0b2430';
+      ctx.fillRect(0, 0, w, h);
+      LAND_FEATURES.forEach(l => {
+        ctx.fillStyle = '#3a4038';
+        ctx.fillRect(l.x * sx, l.y * sy, l.width * sx, l.height * sy);
+      });
+      WATER_FEATURES.forEach(wf => {
+        ctx.fillStyle = '#123a4a';
+        ctx.fillRect(wf.x * sx, wf.y * sy, wf.width * sx, wf.height * sy);
+      });
+
       Object.values(LOCATIONS).forEach((loc: any) => {
         const b = loc.bounds;
         ctx.fillStyle = LOCATION_MINIMAP_COLORS[loc.id] || '#444';
+        ctx.globalAlpha = 0.55;
         ctx.fillRect(b.x * sx, b.y * sy, b.width * sx, b.height * sy);
+        ctx.globalAlpha = 1;
         ctx.strokeStyle = 'rgba(255,255,255,0.12)';
         ctx.strokeRect(b.x * sx, b.y * sy, b.width * sx, b.height * sy);
       });
@@ -759,7 +775,7 @@ export default function App() {
           // Buildings, other cars and closed gates stop the car hard. Pedestrians
           // are deliberately excluded: clipping one shoves them aside instead of
           // bringing a two-tonne vehicle to a dead stop.
-          const blockers = [...BUILDINGS, ...world.cars.filter(c => c !== car), ...world.exteriorSolids()];
+          const blockers = [...BUILDINGS, ...world.cars.filter(c => c !== car), ...world.exteriorSolids(), ...WATER_SOLIDS];
           let hit = false;
           if (!CollisionSystem.checkCollision({ x: car.pos.x + vx, y: car.pos.y }, car.size, blockers)) car.pos.x += vx;
           else hit = true;

@@ -1,5 +1,6 @@
-import { LOCATIONS } from '../data/locations';
+import { LOCATIONS, LAND_FEATURES, WATER_FEATURES } from '../data/locations';
 import { MAP_WIDTH, MAP_HEIGHT } from './collision';
+import { isWaterPoint } from '../world/terrain';
 import { PROPS, ROADS } from '../world/props';
 import { BUILDINGS } from '../world/buildings';
 import { INTERACTIVES, drawInteractive, drawGate } from '../world/interactives';
@@ -52,11 +53,85 @@ export class EnvironmentRenderer {
 
   draw(ctx: CanvasRenderingContext2D, view: EnvView, extras: EnvExtras = {}) {
     this.drawBase(ctx, view);
+    this.drawWater(ctx, view);
+    this.drawLand(ctx, view);
     this.drawZones(ctx, view);
     this.drawRoads(ctx, view);
     this.drawBounds(ctx, view);
     this.drawProps(ctx, view, extras);
     this.drawLighting(ctx, view, extras);
+  }
+
+  /** Landmasses: the island, its districts and the terrain tint per family. */
+  private drawLand(ctx: CanvasRenderingContext2D, view: EnvView) {
+    for (const l of LAND_FEATURES) {
+      if (!this.visible(l.x, l.y, l.width, l.height, view)) continue;
+
+      // Shoreline foam halo, drawn just outside the land so it reads on water.
+      ctx.fillStyle = 'rgba(150,215,230,0.20)';
+      ctx.fillRect(l.x - 7, l.y - 7, l.width + 14, l.height + 14);
+
+      const ground = mix(l.color, '#1b1c22', 0.35);
+      const g = ctx.createLinearGradient(0, l.y, 0, l.y + l.height);
+      g.addColorStop(0, shade(ground, 0.1));
+      g.addColorStop(1, shade(ground, -0.14));
+      ctx.fillStyle = g;
+      ctx.fillRect(l.x, l.y, l.width, l.height);
+
+      // Beaches and bluffs get a soft lighter rim along the shoreline.
+      if (l.kind === 'sand' || l.kind === 'island') {
+        ctx.fillStyle = withAlpha('#d8c89a', 0.10);
+        ctx.fillRect(l.x, l.y, l.width, 26);
+        ctx.fillRect(l.x, l.y + l.height - 26, l.width, 26);
+        ctx.fillRect(l.x, l.y, 26, l.height);
+        ctx.fillRect(l.x + l.width - 26, l.y, 26, l.height);
+      }
+
+      // Deterministic terrain detail, cheap and viewport-clipped.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(l.x, l.y, l.width, l.height);
+      ctx.clip();
+      const count = Math.min(150, Math.floor((l.width * l.height) / 26000));
+      for (let i = 0; i < count; i++) {
+        const px = l.x + hash01(l.id + i, 5) * l.width;
+        const py = l.y + hash01(l.id + i, 6) * l.height;
+        if (!this.visible(px - 40, py - 40, 80, 80, view)) continue;
+        const r = 20 + hash01(l.id + i, 7) * 70;
+        ctx.fillStyle = withAlpha(i % 2 ? shade(ground, 0.28) : shade(ground, -0.3), 0.12);
+        ctx.beginPath();
+        ctx.ellipse(px, py, r, r * (0.6 + hash01(l.id + i, 8) * 0.3), 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  /** Ocean, the Grand Lake and the Chiltown River, with a gentle wave shimmer. */
+  private drawWater(ctx: CanvasRenderingContext2D, view: EnvView) {
+    const ocean = ctx.createLinearGradient(0, view.y, 0, view.y + view.h);
+    ocean.addColorStop(0, '#0d2634');
+    ocean.addColorStop(1, '#0a1c28');
+    ctx.fillStyle = ocean;
+    ctx.fillRect(view.x, view.y, view.w, view.h);
+
+    for (const w of WATER_FEATURES) {
+      if (!this.visible(w.x, w.y, w.width, w.height, view)) continue;
+      ctx.fillStyle = w.color;
+      ctx.fillRect(w.x, w.y, w.width, w.height);
+    }
+
+    // Sparse glints, only over water so land never shimmers.
+    ctx.save();
+    ctx.fillStyle = 'rgba(190,235,255,0.10)';
+    const t = performance.now() / 900;
+    for (let i = 0; i < 90; i++) {
+      const px = view.x + hash01(`wv${i}`, Math.floor(t)) * view.w;
+      const py = view.y + hash01(`wv${i}`, Math.floor(t) + 1) * view.h;
+      if (!isWaterPoint(px, py)) continue;
+      ctx.fillRect(px, py, 16, 2);
+    }
+    ctx.restore();
   }
 
   /**
@@ -111,13 +186,12 @@ export class EnvironmentRenderer {
       const b = loc.bounds;
       if (!this.visible(b.x, b.y, b.width, b.height, view)) continue;
 
-      // Base wash — the zone colour desaturated toward a neutral ground tone, so
-      // scenery and buildings read clearly and the areas feel like places rather
-      // than flat paint fills.
+      // Base wash — the zone colour desaturated toward a neutral ground tone and
+      // kept translucent so the terrain family underneath still reads through.
       const ground = mix(loc.color, '#1b1c22', 0.42);
       const g = ctx.createLinearGradient(0, b.y, 0, b.y + b.height);
-      g.addColorStop(0, shade(ground, 0.1));
-      g.addColorStop(1, shade(ground, -0.12));
+      g.addColorStop(0, withAlpha(shade(ground, 0.1), 0.5));
+      g.addColorStop(1, withAlpha(shade(ground, -0.12), 0.5));
       ctx.fillStyle = g;
       ctx.fillRect(b.x, b.y, b.width, b.height);
 
@@ -131,7 +205,7 @@ export class EnvironmentRenderer {
         const px = b.x + hash01(loc.id + i, 5) * b.width;
         const py = b.y + hash01(loc.id + i, 6) * b.height;
         const r = 14 + hash01(loc.id + i, 7) * 46;
-        ctx.fillStyle = withAlpha(i % 2 ? shade(ground, 0.3) : shade(ground, -0.3), 0.13);
+        ctx.fillStyle = withAlpha(i % 2 ? shade(ground, 0.3) : shade(ground, -0.3), 0.1);
         ctx.beginPath();
         ctx.ellipse(px, py, r, r * 0.7, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -139,15 +213,15 @@ export class EnvironmentRenderer {
       ctx.restore();
 
       // Inset border frame.
-      ctx.strokeStyle = withAlpha(shade(loc.color, 0.6), 0.35);
+      ctx.strokeStyle = withAlpha(shade(loc.color, 0.6), 0.22);
       ctx.lineWidth = 3;
       ctx.strokeRect(b.x + 6, b.y + 6, b.width - 12, b.height - 12);
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.22)';
       ctx.lineWidth = 2;
       ctx.strokeRect(b.x, b.y, b.width, b.height);
 
       // Corner ticks so the grid seams read as deliberate.
-      ctx.strokeStyle = withAlpha(shade(loc.color, 0.8), 0.5);
+      ctx.strokeStyle = withAlpha(shade(loc.color, 0.8), 0.32);
       ctx.lineWidth = 2;
       const tick = 26;
       const corners: [number, number, number, number][] = [
@@ -188,6 +262,12 @@ export class EnvironmentRenderer {
       if (!this.visible(r.x, r.y, r.w, r.h, view)) continue;
       const vertical = r.h > r.w;
       const len = vertical ? r.h : r.w;
+
+      // Shoulder/kerb first so wide roads and bridges read as raised.
+      if (r.major) {
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(r.x - 6, r.y - 6, r.w + 12, r.h + 12);
+      }
       const g = vertical
         ? ctx.createLinearGradient(r.x, 0, r.x + r.w, 0)
         : ctx.createLinearGradient(0, r.y, 0, r.y + r.h);
@@ -196,6 +276,26 @@ export class EnvironmentRenderer {
       g.addColorStop(1, shade(r.color, -0.3));
       ctx.fillStyle = g;
       ctx.fillRect(r.x, r.y, r.w, r.h);
+
+      // Bridge decking: cross-planks instead of tarmac.
+      if (r.bridge) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+        ctx.lineWidth = 2;
+        for (let d = r.y; d < r.y + r.h; d += 26) {
+          ctx.beginPath();
+          ctx.moveTo(r.x, d);
+          ctx.lineTo(r.x + r.w, d);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(220,220,230,0.5)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(r.x + 4, r.y);
+        ctx.lineTo(r.x + 4, r.y + r.h);
+        ctx.moveTo(r.x + r.w - 4, r.y);
+        ctx.lineTo(r.x + r.w - 4, r.y + r.h);
+        ctx.stroke();
+      }
 
       // Kerb edges.
       ctx.fillStyle = withAlpha('#000000', 0.35);
@@ -207,20 +307,40 @@ export class EnvironmentRenderer {
         ctx.fillRect(r.x, r.y + r.h - 3, r.w, 3);
       }
 
-      // Dashed centre line.
-      ctx.strokeStyle = withAlpha('#d8cfae', 0.4);
-      ctx.lineWidth = 4;
-      ctx.setLineDash([26, 26]);
-      ctx.beginPath();
-      if (vertical) {
-        ctx.moveTo(r.x + r.w / 2, r.y);
-        ctx.lineTo(r.x + r.w / 2, r.y + len);
+      // Dashed centre line (double-solid for freeways).
+      if (r.major) {
+        ctx.strokeStyle = withAlpha('#e8d98a', 0.5);
+        ctx.lineWidth = 3;
+        ctx.setLineDash([]);
+        const off = r.h > 32 ? 10 : 4;
+        ctx.beginPath();
+        if (vertical) {
+          ctx.moveTo(r.x + r.w / 2 - off, r.y);
+          ctx.lineTo(r.x + r.w / 2 - off, r.y + len);
+          ctx.moveTo(r.x + r.w / 2 + off, r.y);
+          ctx.lineTo(r.x + r.w / 2 + off, r.y + len);
+        } else {
+          ctx.moveTo(r.x, r.y + r.h / 2 - off);
+          ctx.lineTo(r.x + len, r.y + r.h / 2 - off);
+          ctx.moveTo(r.x, r.y + r.h / 2 + off);
+          ctx.lineTo(r.x + len, r.y + r.h / 2 + off);
+        }
+        ctx.stroke();
       } else {
-        ctx.moveTo(r.x, r.y + r.h / 2);
-        ctx.lineTo(r.x + len, r.y + r.h / 2);
+        ctx.strokeStyle = withAlpha('#d8cfae', 0.4);
+        ctx.lineWidth = 4;
+        ctx.setLineDash([26, 26]);
+        ctx.beginPath();
+        if (vertical) {
+          ctx.moveTo(r.x + r.w / 2, r.y);
+          ctx.lineTo(r.x + r.w / 2, r.y + len);
+        } else {
+          ctx.moveTo(r.x, r.y + r.h / 2);
+          ctx.lineTo(r.x + len, r.y + r.h / 2);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
-      ctx.stroke();
-      ctx.setLineDash([]);
     }
   }
 

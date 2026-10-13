@@ -1,6 +1,7 @@
 import { Building, Car, Door, Enemy, Gate, GoreDecal, Interior, NPC, PoliceUnit, TrafficRoute, Vector2, WeatherKind, WorldSave, WantedState } from '../types';
 import { NPCS } from '../data/npcs';
 import { BUILDINGS } from '../world/buildings';
+import { WATER_SOLIDS } from '../world/terrain';
 import { GATES, INTERACTIVES } from '../world/interactives';
 import { interiorFor } from '../world/interiors';
 import { parkedCars, TRAFFIC_ROUTES, carSpec } from '../world/cars';
@@ -586,7 +587,7 @@ export class WorldRuntime {
 
   /** Everything the walking player collides with outdoors. */
   obstacleSolids(): { pos: Vector2; size: Vector2 }[] {
-    return [...BUILDINGS, ...this.cars, ...this.exteriorSolids()];
+    return [...BUILDINGS, ...this.cars, ...this.exteriorSolids(), ...WATER_SOLIDS];
   }
 
   isGateOpen(flag: string): boolean {

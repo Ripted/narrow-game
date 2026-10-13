@@ -37,6 +37,17 @@ site is served from the `/narrow-game/` subpath. Nothing under `dist/` is
 committed; pushing to `main` (or running the workflow manually) is enough to
 redeploy.
 
+### Blank first screen
+
+`index.html` carries an inline dark background and a `#boot` placeholder that
+`src/main.tsx` removes on mount. This matters because GitHub Pages serves HTML
+with `cache-control: max-age=600`: a browser holding a cached `index.html` can
+briefly request the previous build's asset hashes, and a 404 on the module
+bundle leaves the page blank (the dark background otherwise comes only from the
+bundled stylesheet). The placeholder also turns a failed load into a readable
+error instead of a white screen. Do not remove the inline background or the
+boot fallback.
+
 ## The GTA direction
 
 The game is shifting toward a satirical open-world crime sandbox — "GTA in the

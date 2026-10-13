@@ -8,9 +8,47 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230d0d0d'/%3E%3Cpath d='M6 16h14M16 9l8 7-8 7' stroke='%2300ffff' stroke-width='3' fill='none'/%3E%3C/svg%3E"
     />
+    <!-- Paint dark before the bundle loads: the game's background otherwise
+         comes only from the bundled stylesheet, leaving a white flash (or a
+         permanent white page when a stale cached index.html points at
+         deleted asset hashes). -->
+    <style>
+      html, body { background: #0d0d0d; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="boot" style="position: fixed; inset: 0; background: #0d0d0d; color: #00ffff; font-family: Inter, sans-serif; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; text-align: center; padding: 24px;">
+        <div style="font-size: 20px; letter-spacing: 0.08em;">LOADING NARROW ARROW…</div>
+        <div id="boot-detail" style="color: #8a8a8a; font-size: 13px; max-width: 520px;"></div>
+      </div>
+    </div>
+    <script>
+      // If the module bundle fails to load (offline, stale cache, bad deploy)
+      // surface it instead of leaving the visitor on a blank page.
+      (function () {
+        function fail(msg) {
+          var boot = document.getElementById('boot');
+          var detail = document.getElementById('boot-detail');
+          if (!boot) return;
+          boot.firstElementChild.textContent = 'NARROW ARROW FAILED TO START';
+          if (detail) detail.textContent = msg + ' — reload the page to try again.';
+        }
+        window.addEventListener('error', function (e) {
+          if (document.getElementById('boot')) fail(e.message || 'A script error occurred');
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          if (!document.getElementById('boot')) return;
+          fail((e.reason && (e.reason.message || e.reason)) || 'An unexpected error occurred');
+        });
+        // A module that 404s fires no error event; detect the stall instead.
+        window.setTimeout(function () {
+          if (document.getElementById('boot')) {
+            fail('The game script did not load');
+          }
+        }, 12000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

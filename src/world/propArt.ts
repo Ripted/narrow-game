@@ -348,6 +348,234 @@ export function drawProp(ctx: Ctx, kind: PropKind, cx: number, baseY: number, w:
       ctx.fillRect(cx - s * 0.2, baseY - h * 0.95, s * 0.4, h * 0.08);
       break;
     }
+    // ---- Chiltown waterfront, farmland and lakefront ------------------------
+    case 'pier': {
+      ctx.fillStyle = linear(ctx, baseY - h, baseY, shade(color, 0.25), shade(color, -0.35));
+      ctx.fillRect(cx - w / 2, baseY - h, w, h);
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = 1;
+      for (let px = cx - w / 2 + 6; px < cx + w / 2; px += 9) {
+        ctx.beginPath();
+        ctx.moveTo(px, baseY - h);
+        ctx.lineTo(px, baseY);
+        ctx.stroke();
+      }
+      ctx.fillStyle = shade(color, -0.45);
+      ctx.fillRect(cx - w / 2 + 4, baseY - 2, 4, 8);
+      ctx.fillRect(cx + w / 2 - 8, baseY - 2, 4, 8);
+      break;
+    }
+    case 'buoy': {
+      ctx.fillStyle = linear(ctx, baseY - h, baseY, shade(color, 0.3), shade(color, -0.3));
+      ctx.beginPath();
+      ctx.ellipse(cx, baseY - h * 0.4, w * 0.42, h * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#e8e8e8';
+      ctx.fillRect(cx - w * 0.2, baseY - h * 0.75, w * 0.4, h * 0.16);
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(cx, baseY - h * 0.4, w * 0.42, h * 0.42, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+    case 'lifeguard': {
+      ctx.fillStyle = shade(color, -0.1);
+      ctx.fillRect(cx - w * 0.28, baseY - h * 0.9, w * 0.56, h * 0.9);
+      ctx.fillStyle = color;
+      ctx.fillRect(cx - w * 0.34, baseY - h, w * 0.68, h * 0.16);
+      ctx.fillStyle = '#d04a3a';
+      ctx.fillRect(cx - w * 0.28, baseY - h * 0.6, w * 0.56, h * 0.14);
+      break;
+    }
+    case 'driftwood': {
+      ctx.fillStyle = linear(ctx, baseY - h, baseY, shade(color, 0.2), shade(color, -0.3));
+      ctx.beginPath();
+      ctx.moveTo(cx - w / 2, baseY - h * 0.3);
+      ctx.quadraticCurveTo(cx, baseY - h * 1.2, cx + w / 2, baseY - h * 0.2);
+      ctx.lineTo(cx + w / 2, baseY);
+      ctx.lineTo(cx - w / 2, baseY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      break;
+    }
+    case 'cattail': {
+      ctx.strokeStyle = shade('#4a6a34', -0.1);
+      ctx.lineWidth = 2;
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.moveTo(cx + i * 4, baseY);
+        ctx.lineTo(cx + i * 4, baseY - h);
+        ctx.stroke();
+        ctx.fillStyle = shade(color, -0.2);
+        ctx.fillRect(cx + i * 4 - 2, baseY - h, 4, h * 0.3);
+      }
+      break;
+    }
+    case 'silo': {
+      ctx.fillStyle = linear(ctx, baseY - h, baseY, shade(color, 0.3), shade(color, -0.3));
+      ctx.fillRect(cx - w / 2, baseY - h * 0.85, w, h * 0.85);
+      ctx.beginPath();
+      ctx.ellipse(cx, baseY - h * 0.85, w / 2, w * 0.28, 0, Math.PI, 0);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 1;
+      for (let ry = baseY - h * 0.75; ry < baseY; ry += 8) {
+        ctx.beginPath();
+        ctx.moveTo(cx - w / 2, ry);
+        ctx.lineTo(cx + w / 2, ry);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(cx - w / 2, baseY - h * 0.85, w, h * 0.85);
+      break;
+    }
+    case 'windmill': {
+      ctx.fillStyle = shade(color, -0.3);
+      ctx.fillRect(cx - 3, baseY - h * 0.8, 6, h * 0.8);
+      ctx.fillStyle = shade(color, 0.1);
+      ctx.beginPath();
+      ctx.arc(cx, baseY - h * 0.82, 5, 0, Math.PI * 2);
+      ctx.fill();
+      const spin = (performance.now() / 1400) % (Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 4; i++) {
+        const a = spin + (i * Math.PI) / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, baseY - h * 0.82);
+        ctx.lineTo(cx + Math.cos(a) * w * 0.5, baseY - h * 0.82 + Math.sin(a) * w * 0.5);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'haystack': {
+      ctx.fillStyle = linear(ctx, baseY - h, baseY, shade(color, 0.35), shade(color, -0.3));
+      ctx.beginPath();
+      ctx.ellipse(cx, baseY - h * 0.5, w * 0.5, h * 0.5, 0, Math.PI, 0);
+      ctx.fill();
+      ctx.fillRect(cx - w / 2, baseY - h * 0.5, w, h * 0.5);
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(cx - w * 0.4 + i * (w * 0.27), baseY - h * 0.9);
+        ctx.lineTo(cx - w * 0.4 + i * (w * 0.27), baseY);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'picnic': {
+      ctx.fillStyle = shade(color, -0.15);
+      ctx.fillRect(cx - w / 2, baseY - h * 0.6, w, h * 0.6);
+      ctx.fillStyle = '#e8e0d0';
+      ctx.fillRect(cx - w / 2, baseY - h * 0.6, w, h * 0.14);
+      ctx.fillRect(cx - w / 2, baseY - h * 0.3, w, h * 0.12);
+      ctx.fillStyle = shade(color, 0.3);
+      ctx.fillRect(cx - w / 2 - 2, baseY - h * 0.72, w + 4, h * 0.12);
+      break;
+    }
+    // ---- Chiltown landmarks -------------------------------------------------
+    case 'bean': {
+      // The mirrored Kidney Bean: a chrome blob on a plinth.
+      ctx.fillStyle = '#3a3f46';
+      ctx.fillRect(cx - w * 0.32, baseY - h * 0.16, w * 0.64, h * 0.16);
+      const g = linear(ctx, baseY - h, baseY - h * 0.1, '#e8f0f8', '#6a7a88');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(cx, baseY - h * 0.55, w * 0.44, h * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.beginPath();
+      ctx.ellipse(cx - w * 0.12, baseY - h * 0.72, w * 0.16, h * 0.2, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(20,30,40,0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, baseY - h * 0.55, w * 0.44, h * 0.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+    case 'ferris': {
+      // A pier ferris wheel with lit spokes.
+      ctx.strokeStyle = '#c9c9d0';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, baseY - h * 0.6, h * 0.42, 0, Math.PI * 2);
+      ctx.stroke();
+      const spin = performance.now() / 2600;
+      for (let i = 0; i < 8; i++) {
+        const a = spin + (i * Math.PI) / 4;
+        const ex = cx + Math.cos(a) * h * 0.42;
+        const ey = baseY - h * 0.6 + Math.sin(a) * h * 0.42;
+        ctx.strokeStyle = 'rgba(200,200,210,0.7)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, baseY - h * 0.6);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+        ctx.fillStyle = i % 2 ? '#ffd070' : '#ff5a7a';
+        ctx.beginPath();
+        ctx.arc(ex, ey, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // A-frame legs.
+      ctx.strokeStyle = '#8a8a94';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(cx - w * 0.3, baseY);
+      ctx.lineTo(cx, baseY - h * 0.6);
+      ctx.lineTo(cx + w * 0.3, baseY);
+      ctx.stroke();
+      break;
+    }
+    case 'pagoda': {
+      // River Ward gateway: stacked red roofs over a timber frame.
+      ctx.fillStyle = '#6a3a2a';
+      ctx.fillRect(cx - w * 0.36, baseY - h * 0.7, w * 0.12, h * 0.7);
+      ctx.fillRect(cx + w * 0.24, baseY - h * 0.7, w * 0.12, h * 0.7);
+      for (let i = 0; i < 3; i++) {
+        const ry = baseY - h * (0.55 + i * 0.18);
+        const rw = w * (0.5 - i * 0.08);
+        ctx.fillStyle = i % 2 ? '#b02a2a' : '#c93a2a';
+        ctx.beginPath();
+        ctx.moveTo(cx - rw, ry);
+        ctx.lineTo(cx + rw, ry);
+        ctx.lineTo(cx + rw * 0.6, ry - h * 0.1);
+        ctx.lineTo(cx - rw * 0.6, ry - h * 0.1);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'pylon': {
+      // Elevated-train support: a steel truss column with cross bracing.
+      ctx.fillStyle = linear(ctx, baseY - h, baseY, shade(color, 0.15), shade(color, -0.4));
+      ctx.fillRect(cx - w * 0.42, baseY - h, w * 0.1, h);
+      ctx.fillRect(cx + w * 0.32, baseY - h, w * 0.1, h);
+      ctx.strokeStyle = shade(color, -0.15);
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 6; i++) {
+        const y0 = baseY - h + (i * h) / 6;
+        const y1 = baseY - h + ((i + 1) * h) / 6;
+        ctx.beginPath();
+        ctx.moveTo(cx - w * 0.42, y0);
+        ctx.lineTo(cx + w * 0.42, y1);
+        ctx.moveTo(cx + w * 0.42, y0);
+        ctx.lineTo(cx - w * 0.42, y1);
+        ctx.stroke();
+      }
+      ctx.fillStyle = shade(color, 0.2);
+      ctx.fillRect(cx - w * 0.55, baseY - h, w * 1.1, h * 0.08);
+      break;
+    }
     default: {
       ctx.fillStyle = color;
       ctx.fillRect(cx - w / 2, baseY - h, w, h);
@@ -406,6 +634,9 @@ export function propEmissive(ctx: Ctx, kind: PropKind, cx: number, baseY: number
       break;
     case 'beer_tap':
       blob(baseY - h * 1.2, s * 0.8, withAlpha(color, 0.3));
+      break;
+    case 'buoy':
+      blob(baseY - h * 0.5, s * 0.9, withAlpha('#ff6a4a', 0.3));
       break;
     default:
       break;

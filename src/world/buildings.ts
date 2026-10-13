@@ -3,6 +3,7 @@ import { LOCATIONS } from '../data/locations';
 import { NPCS } from '../data/npcs';
 import { WORLD_OBJECTS } from './objects';
 import { ROADS } from './roads';
+import { overlapsWater } from './terrain';
 
 interface Spec {
   kind: BuildingKind;
@@ -71,11 +72,80 @@ const ZONE_BUILDINGS: Record<string, Spec[]> = {
     { kind: 'hut', wallHeight: 30, wall: '#43545e', roof: '#2f3d45', count: 2 },
     { kind: 'bunker', wallHeight: 26, wall: '#3d4a52', roof: '#2c363c', count: 1 },
   ],
+
+  // ---- Chiltown proper ------------------------------------------------------
+  chiltown_loop: [
+    { kind: 'skyscraper', wallHeight: 210, wall: '#2f3540', roof: '#3a4450', count: 4 },
+    { kind: 'apartment', wallHeight: 118, wall: '#454a52', roof: '#3a3f47', count: 4 },
+    { kind: 'brownstone', wallHeight: 76, wall: '#6a4a3a', roof: '#4a2f26', count: 3 },
+  ],
+  gold_coast: [
+    { kind: 'brownstone', wallHeight: 80, wall: '#7a5a44', roof: '#5a3a2e', count: 5 },
+    { kind: 'apartment', wallHeight: 132, wall: '#5a5560', roof: '#45404a', count: 3 },
+    { kind: 'cafe', wallHeight: 60, wall: '#c9b08a', roof: '#8a3a2a', count: 2 },
+  ],
+  wrigleyville: [
+    { kind: 'stadium', wallHeight: 120, wall: '#4a5058', roof: '#3f4650', count: 1 },
+    { kind: 'brownstone', wallHeight: 72, wall: '#6a3f34', roof: '#4a2a22', count: 4 },
+    { kind: 'house', wallHeight: 60, wall: '#b08a5a', roof: '#7a2f22', count: 3 },
+  ],
+  chinatown: [
+    { kind: 'apartment', wallHeight: 110, wall: '#5a3f3a', roof: '#3f2a26', count: 4 },
+    { kind: 'warehouse', wallHeight: 54, wall: '#4a4038', roof: '#7a2a2a', count: 2 },
+    { kind: 'cafe', wallHeight: 58, wall: '#a86a4a', roof: '#8a2020', count: 2 },
+  ],
+
+  // ---- The Southlands -------------------------------------------------------
+  farmland: [
+    { kind: 'hut', wallHeight: 34, wall: '#7a5a34', roof: '#4a3a20', count: 4 },
+    { kind: 'warehouse', wallHeight: 50, wall: '#8a3a2a', roof: '#5a2a1e', count: 2 },
+    { kind: 'house', wallHeight: 58, wall: '#c9a06a', roof: '#7a2f22', count: 2 },
+  ],
+  lakefront: [
+    { kind: 'house', wallHeight: 56, wall: '#c0a878', roof: '#8a3a2a', count: 4 },
+    { kind: 'cafe', wallHeight: 58, wall: '#b8a0c0', roof: '#5a4a6a', count: 2 },
+    { kind: 'lighthouse', wallHeight: 96, wall: '#e0e0e0', roof: '#c23a3a', count: 1 },
+  ],
+  bluff_county: [
+    { kind: 'hut', wallHeight: 32, wall: '#5a4a30', roof: '#3f3420', count: 4 },
+    { kind: 'ruin', wallHeight: 40, wall: '#4e4a3c', roof: '#33301f', count: 3 },
+  ],
+
+  // ---- The north island -----------------------------------------------------
+  north_shore: [
+    { kind: 'apartment', wallHeight: 126, wall: '#4f5560', roof: '#3c424c', count: 4 },
+    { kind: 'brownstone', wallHeight: 74, wall: '#6a4f3a', roof: '#4a3527', count: 4 },
+    { kind: 'house', wallHeight: 58, wall: '#b8a878', roof: '#7a2f22', count: 3 },
+  ],
+  lake_woods: [
+    { kind: 'ruin', wallHeight: 36, wall: '#4a4636', roof: '#2f2c1e', count: 4 },
+    { kind: 'hut', wallHeight: 30, wall: '#5a4a30', roof: '#3f3420', count: 3 },
+  ],
+  grand_lake_airport: [
+    { kind: 'tower', wallHeight: 140, wall: '#3a4450', roof: '#5a7a9a', count: 1 },
+    { kind: 'warehouse', wallHeight: 58, wall: '#4a4f58', roof: '#6a6f78', count: 3 },
+  ],
+  freight_yards: [
+    { kind: 'warehouse', wallHeight: 52, wall: '#45403a', roof: '#5a544c', count: 3 },
+    { kind: 'bunker', wallHeight: 26, wall: '#3a3630', roof: '#2c2824', count: 3 },
+  ],
+
+  // ---- The Steel Coast ------------------------------------------------------
+  steelworks: [
+    { kind: 'factory', wallHeight: 120, wall: '#4a3a30', roof: '#5a4a3a', count: 3 },
+    { kind: 'warehouse', wallHeight: 58, wall: '#4a4038', roof: '#6a5a4a', count: 3 },
+  ],
+  east_dunes: [
+    { kind: 'ruin', wallHeight: 38, wall: '#6a5f48', roof: '#4a4232', count: 4 },
+    { kind: 'hut', wallHeight: 30, wall: '#7a6a4a', roof: '#4a3f2a', count: 3 },
+  ],
 };
 
 const FOOTPRINTS: Record<BuildingKind, [number, number]> = {
   house: [92, 70], cafe: [112, 80], tower: [64, 64], hall: [168, 112], bunker: [120, 92],
   warehouse: [152, 100], shrine: [74, 70], hut: [56, 50], ruin: [104, 82],
+  skyscraper: [76, 76], brownstone: [70, 92], apartment: [104, 84], factory: [176, 120],
+  stadium: [220, 150], lighthouse: [48, 48],
 };
 
 function rng(seed: number) {
@@ -94,6 +164,8 @@ function overlaps(ax: number, ay: number, aw: number, ah: number, bx: number, by
 }
 
 function valid(b: Building, all: Building[]): boolean {
+  // Keep structures out of the river and the lake.
+  if (overlapsWater(b.pos.x, b.pos.y, b.size.x, b.size.y)) return false;
   // Roads (with a little clearance).
   for (const r of ROADS) {
     if (overlaps(b.pos.x, b.pos.y, b.size.x, b.size.y, r.x, r.y, r.w, r.h, 6)) return false;

@@ -48,6 +48,29 @@ const PARKED: { kind: CarKind; x: number; y: number; angle: number }[] = [
   { kind: 'sedan', x: 5200, y: 2080, angle: Math.PI },
   // Broken-down ruin car in the Dead Zone.
   { kind: 'hatch', x: 2320, y: 2260, angle: 0.6 },
+  // Chiltown Loop kerbside.
+  { kind: 'taxi', x: 400, y: 3600, angle: 0 },
+  { kind: 'sedan', x: 900, y: 4020, angle: 0 },
+  { kind: 'hatch', x: 1300, y: 4480, angle: 0 },
+  { kind: 'van', x: 300, y: 4940, angle: 0 },
+  { kind: 'sedan', x: 5600, y: 3620, angle: Math.PI },
+  { kind: 'taxi', x: 4500, y: 4940, angle: Math.PI },
+  // Gold Coast / Bleacherville / River Ward.
+  { kind: 'sedan', x: 1700, y: 4040, angle: 0 },
+  { kind: 'truck', x: 3100, y: 4520, angle: 0 },
+  { kind: 'taxi', x: 4500, y: 3620, angle: 0 },
+  { kind: 'hatch', x: 5600, y: 4520, angle: Math.PI },
+  // Southlands.
+  { kind: 'truck', x: 1100, y: 6400, angle: Math.PI / 2 },
+  { kind: 'hatch', x: 2500, y: 6060, angle: 0 },
+  { kind: 'van', x: 4100, y: 6400, angle: Math.PI / 2 },
+  // North island and airport.
+  { kind: 'sedan', x: 6500, y: 600, angle: Math.PI / 2 },
+  { kind: 'taxi', x: 7900, y: 1000, angle: Math.PI / 2 },
+  { kind: 'van', x: 7000, y: 4260, angle: 0 },
+  // Steel Coast.
+  { kind: 'truck', x: 7000, y: 6060, angle: 0 },
+  { kind: 'truck', x: 9000, y: 6060, angle: 0 },
 ];
 
 /** Hub-relative centre of a parked car from its top-left placement. */
@@ -79,7 +102,7 @@ export const TRAFFIC_ROUTES: TrafficRoute[] = [
     count: 4,
     interval: 1,
     points: [
-      { x: 200, y: 3132 }, { x: 5400, y: 3132 },
+      { x: 200, y: 3132 }, { x: 5800, y: 3132 },
     ],
   },
   {
@@ -88,7 +111,25 @@ export const TRAFFIC_ROUTES: TrafficRoute[] = [
     count: 4,
     interval: 1,
     points: [
-      { x: 5400, y: 3388 }, { x: 200, y: 3388 },
+      { x: 5800, y: 3388 }, { x: 200, y: 3388 },
+    ],
+  },
+  {
+    id: 'south_freeway_east',
+    speed: 115,
+    count: 4,
+    interval: 1,
+    points: [
+      { x: 200, y: 5672 }, { x: 5800, y: 5672 },
+    ],
+  },
+  {
+    id: 'south_freeway_west',
+    speed: 105,
+    count: 4,
+    interval: 1,
+    points: [
+      { x: 5800, y: 5928 }, { x: 200, y: 5928 },
     ],
   },
   {
@@ -109,6 +150,57 @@ export const TRAFFIC_ROUTES: TrafficRoute[] = [
     points: [
       { x: 3370, y: 300 }, { x: 3370, y: 1990 }, { x: 4800, y: 1990 },
       { x: 4800, y: 300 }, { x: 3370, y: 300 },
+    ],
+  },
+  // ---- Chiltown downtown circuits -------------------------------------------
+  {
+    id: 'loop_crosstown',
+    speed: 95,
+    count: 5,
+    interval: 1,
+    points: [
+      { x: 300, y: 3560 }, { x: 5700, y: 3560 }, { x: 5700, y: 5400 },
+      { x: 300, y: 5400 }, { x: 300, y: 3560 },
+    ],
+  },
+  {
+    id: 'loop_north_south',
+    speed: 85,
+    count: 4,
+    interval: 1,
+    points: [
+      { x: 1580, y: 3600 }, { x: 1580, y: 5300 }, { x: 5700, y: 5300 },
+      { x: 5700, y: 3600 }, { x: 1580, y: 3600 },
+    ],
+  },
+  {
+    id: 'bridge_run',
+    speed: 90,
+    count: 3,
+    interval: 1,
+    points: [
+      { x: 6180, y: 1620 }, { x: 6180, y: 3180 }, { x: 7600, y: 3180 },
+      { x: 7600, y: 1620 }, { x: 6180, y: 1620 },
+    ],
+  },
+  {
+    id: 'island_loop',
+    speed: 80,
+    count: 4,
+    interval: 1,
+    points: [
+      { x: 6500, y: 300 }, { x: 7800, y: 300 }, { x: 7800, y: 1400 },
+      { x: 6500, y: 1400 }, { x: 6500, y: 300 },
+    ],
+  },
+  {
+    id: 'southlands_loop',
+    speed: 85,
+    count: 3,
+    interval: 1,
+    points: [
+      { x: 1100, y: 6000 }, { x: 5700, y: 6000 }, { x: 5700, y: 6900 },
+      { x: 1100, y: 6900 }, { x: 1100, y: 6000 },
     ],
   },
 ];

@@ -1,5 +1,6 @@
 import { WorldObject } from '../types';
 import { GRAFFITI } from '../data/humor';
+import { LANDMARK_OBJECTS } from './landmarks';
 
 export const WORLD_OBJECTS: WorldObject[] = [
   {
@@ -253,5 +254,6 @@ export const WORLD_OBJECTS: WorldObject[] = [
     id: 'graffiti_paprika', name: 'Graffiti', pos: { x: 300, y: 1350 }, size: { x: 40, y: 40 },
     color: '#b22222', type: 'object', propKind: 'neon', interactable: true,
     description: GRAFFITI[6],
-  }
+  },
+  ...LANDMARK_OBJECTS
 ];

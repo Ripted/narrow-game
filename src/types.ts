@@ -77,7 +77,22 @@ export type PropKind =
   | 'adboard'
   | 'statue_risque'
   | 'dumpster'
-  | 'beer_tap';
+  | 'beer_tap'
+  // Chiltown waterfront, farmland and lakefront scenery.
+  | 'pier'
+  | 'buoy'
+  | 'lifeguard'
+  | 'driftwood'
+  | 'cattail'
+  | 'silo'
+  | 'windmill'
+  | 'haystack'
+  | 'picnic'
+  // Chiltown landmarks.
+  | 'bean'
+  | 'ferris'
+  | 'pagoda'
+  | 'pylon';
 
 /** A purely decorative world entity; never interactive, never solid. */
 export interface Prop extends Entity {
@@ -99,7 +114,14 @@ export type BuildingKind =
   | 'warehouse'
   | 'shrine'
   | 'hut'
-  | 'ruin';
+  | 'ruin'
+  // Chiltown's downtown and lakefront.
+  | 'skyscraper'
+  | 'brownstone'
+  | 'apartment'
+  | 'factory'
+  | 'stadium'
+  | 'lighthouse';
 
 export interface Building extends Entity {
   type: 'building';
@@ -123,6 +145,12 @@ export const BUILDING_LABELS: Record<BuildingKind, string> = {
   shrine: 'Shrine',
   hut: 'Hut',
   ruin: 'Ruin',
+  skyscraper: 'Skyscraper',
+  brownstone: 'Brownstone',
+  apartment: 'Apartment Block',
+  factory: 'Factory',
+  stadium: 'Stadium',
+  lighthouse: 'Lighthouse',
 };
 
 export interface NPC extends Entity {

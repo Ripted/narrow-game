@@ -21,6 +21,12 @@ const ROOFS: Record<BuildingKind, RoofSpec> = {
   shrine: { roofColor: '#8a1f2a', slope: 0.75, chimney: false, skylights: false },
   hut: { roofColor: '#5a4326', slope: 0.6, chimney: false, skylights: false },
   ruin: { roofColor: '#4a453c', slope: 0.35, chimney: false, skylights: false },
+  skyscraper: { roofColor: '#2c313c', slope: 0.1, chimney: false, skylights: false },
+  brownstone: { roofColor: '#5a3a2e', slope: 0.25, chimney: true, skylights: false },
+  apartment: { roofColor: '#4a4550', slope: 0.16, chimney: false, skylights: true },
+  factory: { roofColor: '#585c60', slope: 0.2, chimney: true, skylights: true },
+  stadium: { roofColor: '#3f4650', slope: 0.08, chimney: false, skylights: true },
+  lighthouse: { roofColor: '#c23a3a', slope: 0.6, chimney: false, skylights: false },
 };
 
 /**
@@ -39,8 +45,9 @@ interface WinRect { x: number; y: number; w: number; h: number; lit: boolean }
 function windows(b: Building): WinRect[] {
   const { wallY, wallH } = bands(b);
   const kind = b.buildingKind;
-  const cols = kind === 'tower' ? 3 : kind === 'warehouse' ? 4 : Math.max(2, Math.min(4, Math.round(b.size.x / 46)));
-  const rows = kind === 'tower' ? 3 : 1;
+  const tall = kind === 'tower' || kind === 'skyscraper';
+  const cols = tall ? 3 : kind === 'warehouse' || kind === 'factory' || kind === 'stadium' ? 4 : Math.max(2, Math.min(4, Math.round(b.size.x / 46)));
+  const rows = tall ? 3 : kind === 'apartment' || kind === 'brownstone' ? 2 : 1;
   const marginX = 12;
   const cellW = (b.size.x - marginX * 2) / cols;
   const winW = Math.min(cellW * 0.62, 22);

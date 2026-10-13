@@ -4,6 +4,8 @@ import { NPCS } from '../data/npcs';
 import { WORLD_OBJECTS } from './objects';
 import { ROADS, onRoad } from './roads';
 import { BUILDINGS } from './buildings';
+import { isWaterPoint } from './terrain';
+import { LANDMARK_PROPS } from './landmarks';
 
 export { ROADS, onRoad } from './roads';
 export const PROP_COLLISION_EXEMPT = true; // props are scenery only; never solid
@@ -107,6 +109,92 @@ const THEMES: Record<string, ZoneTheme> = {
     colors: { crate: '#4a5a64', barrel: '#6a4a3a', fence: '#4a5560', rock: '#4a4a4a', dumpster: '#3a4a3a' },
     count: 28,
   },
+
+  // ---- Chiltown proper ------------------------------------------------------
+  chiltown_loop: {
+    accent: '#8a90a0',
+    kinds: ['neon', 'lamp', 'dumpster', 'column', 'adboard', 'crate', 'lamp', 'neon', 'monitor'],
+    colors: { neon: '#e04a9a', lamp: '#ffd070', dumpster: '#3a3f46', column: '#6a6f78', adboard: '#e08a2a', crate: '#4a4f56', monitor: '#4a90d0' },
+    count: 34,
+  },
+  gold_coast: {
+    accent: '#c9a86a',
+    kinds: ['tree', 'lamp', 'bush', 'flower', 'crate', 'picnic', 'lamp', 'flower'],
+    colors: { tree: '#4a7a4a', lamp: '#ffd070', bush: '#5a8a5a', flower: '#d88ad0', crate: '#7a5a3a', picnic: '#8a5a3a' },
+    count: 26,
+  },
+  wrigleyville: {
+    accent: '#c04a3a',
+    kinds: ['adboard', 'lamp', 'crate', 'beer_tap', 'dumpster', 'lamp', 'book'],
+    colors: { adboard: '#c04a3a', lamp: '#ffd070', crate: '#6a4a3a', beer_tap: '#c98a2a', dumpster: '#3a4a3a', book: '#8a6a3a' },
+    count: 24,
+  },
+  chinatown: {
+    accent: '#d04a3a',
+    kinds: ['neon', 'lamp', 'flower', 'crate', 'bush', 'neon', 'crate'],
+    colors: { neon: '#ff3a3a', lamp: '#ffb060', flower: '#e0a0b0', crate: '#6a4a3a', bush: '#4a7a4a' },
+    count: 22,
+  },
+
+  // ---- The Southlands -------------------------------------------------------
+  farmland: {
+    accent: '#8a9a3a',
+    kinds: ['haystack', 'silo', 'windmill', 'fence', 'grass', 'tree', 'haystack', 'fence'],
+    colors: { haystack: '#c9a84a', silo: '#b0b0a8', windmill: '#c8c8c0', fence: '#6a5a44', grass: '#6a8a3a', tree: '#4a7a3a' },
+    count: 44,
+  },
+  lakefront: {
+    accent: '#c9b878',
+    kinds: ['pier', 'buoy', 'lifeguard', 'driftwood', 'cattail', 'picnic', 'rock', 'pier'],
+    colors: { pier: '#8a6a44', buoy: '#e04a3a', lifeguard: '#e8e8e8', driftwood: '#9a8a6a', cattail: '#5a7a44', picnic: '#c04a3a', rock: '#6a6a60' },
+    count: 40,
+  },
+  bluff_county: {
+    accent: '#3a5a30',
+    kinds: ['pine', 'pine', 'tree', 'bush', 'rock', 'grass', 'pine', 'rock'],
+    colors: { pine: '#2f5a30', tree: '#3a6a38', bush: '#4a6a3a', rock: '#5a5a52', grass: '#5a7a44' },
+    count: 52,
+  },
+
+  // ---- The north island -----------------------------------------------------
+  north_shore: {
+    accent: '#7a9a6a',
+    kinds: ['tree', 'tree', 'bush', 'flower', 'lamp', 'picnic', 'lamp', 'crate'],
+    colors: { tree: '#4a7a4a', bush: '#5a8a5a', flower: '#e0c04a', lamp: '#ffd070', picnic: '#8a5a3a', crate: '#6a5a4a' },
+    count: 34,
+  },
+  lake_woods: {
+    accent: '#2f4a28',
+    kinds: ['pine', 'pine', 'pine', 'tree', 'bush', 'rock', 'grass', 'pine'],
+    colors: { pine: '#2a5230', tree: '#356034', bush: '#45663a', rock: '#55554c', grass: '#547040' },
+    count: 56,
+  },
+  grand_lake_airport: {
+    accent: '#8a9098',
+    kinds: ['lamp', 'fence', 'adboard', 'crate', 'lamp', 'monitor', 'fence'],
+    colors: { lamp: '#ffd070', fence: '#5a5a60', adboard: '#3a7ab0', crate: '#4a4f56', monitor: '#4a90d0' },
+    count: 24,
+  },
+  freight_yards: {
+    accent: '#6a6258',
+    kinds: ['crate', 'crate', 'dumpster', 'fence', 'barrel', 'crate', 'rock'],
+    colors: { crate: '#5a5248', dumpster: '#3a4a3a', fence: '#5a544c', barrel: '#6a4a3a', rock: '#4a4a4a' },
+    count: 40,
+  },
+
+  // ---- The Steel Coast ------------------------------------------------------
+  steelworks: {
+    accent: '#b05a2a',
+    kinds: ['barrel', 'crate', 'fence', 'dumpster', 'rock', 'barrel', 'crate'],
+    colors: { barrel: '#a05a20', crate: '#5a4a3a', fence: '#5a544c', dumpster: '#3a3a34', rock: '#4a4a4a' },
+    count: 42,
+  },
+  east_dunes: {
+    accent: '#c9b878',
+    kinds: ['rock', 'driftwood', 'grass', 'bush', 'rock', 'cattail', 'pier'],
+    colors: { rock: '#7a6a52', driftwood: '#9a8a6a', grass: '#6a7a44', bush: '#5a6a3a', cattail: '#5a7a44', pier: '#8a6a44' },
+    count: 46,
+  },
 };
 
 /** Nominal footprint per prop kind; a little jitter is added at build time. */
@@ -118,6 +206,9 @@ const SIZES: Record<PropKind, [number, number]> = {
   clock: [30, 30], board: [60, 80], banner: [200, 40], sign: [100, 60], shrine: [60, 60],
   baguette: [30, 10], plaque: [40, 40], crystal: [22, 30],
   adboard: [120, 70], statue_risque: [30, 54], dumpster: [54, 40], beer_tap: [26, 44],
+  pier: [70, 26], buoy: [18, 24], lifeguard: [22, 34], driftwood: [40, 18], cattail: [14, 30],
+  silo: [40, 66], windmill: [52, 78], haystack: [34, 26], picnic: [34, 24],
+  bean: [140, 96], ferris: [160, 150], pagoda: [110, 90], pylon: [44, 130],
 };
 
 /** Deterministic PRNG (mulberry32) so the layout is identical every load. */
@@ -170,8 +261,10 @@ function buildProps(): Prop[] {
       const w = size[0] * (0.85 + rnd() * 0.4);
       const h = size[1] * (0.85 + rnd() * 0.35);
       // Test both the prop's ground point and its visual centre, so tall props
-      // never overhang a road or a character.
-      if (onRoad(cx, cy) || onRoad(cx, cy - h / 2) || blocked(cx, cy) || blocked(cx, cy - h / 2)) continue;
+      // never overhang a road or a character. Water is off-limits too.
+      if (onRoad(cx, cy) || onRoad(cx, cy - h / 2)) continue;
+      if (isWaterPoint(cx, cy) || isWaterPoint(cx, cy - h / 2)) continue;
+      if (blocked(cx, cy) || blocked(cx, cy - h / 2)) continue;
 
       props.push({
         id: `prop_${loc.id}_${placed}`,
@@ -188,4 +281,4 @@ function buildProps(): Prop[] {
   return props;
 }
 
-export const PROPS: Prop[] = buildProps();
+export const PROPS: Prop[] = [...buildProps(), ...LANDMARK_PROPS];
