@@ -5,7 +5,7 @@ import { EntitySpriteSystem } from './entitySprite';
 import { EnvironmentRenderer, EnvExtras } from './environment';
 import { Interior } from '../types';
 import { drawInterior } from '../world/interiorArt';
-import { drawCar } from '../world/cars';
+import { drawCar, drawCarBody, drawCarRoof, drawDriverInCar } from '../world/cars';
 import { drawEnemy } from '../world/enemies';
 
 export class Renderer {
@@ -57,6 +57,23 @@ export class Renderer {
 
     this.sprites.update(entity, dtMs);
     this.sprites.draw(this.ctx, entity, { hp });
+  }
+
+  /**
+   * Draws an entity seated in a car: torso visible through the cabin, legs
+   * hidden, and no nameplate (a driver should not float a label over the roof).
+   */
+  drawEntityInCar(
+    entity: Entity,
+    camera: Camera,
+    car: Car,
+    dtMs = 16
+  ) {
+    const { pos, size } = car;
+    if (!this.isVisible(pos.x, pos.y - size.y, size.x, size.y * 2.2, camera)) return;
+
+    this.sprites.draw(this.ctx, entity, { driving: true });
+    void dtMs;
   }
 
   /** Terrain, roads, scenery props, fixtures, ambient lighting and zone labels. */
@@ -118,6 +135,21 @@ export class Renderer {
       pos.y > camera.pos.y + camera.viewport.y + pad
     ) return;
     drawCar(this.ctx, car, time);
+  }
+
+  /** Draws a car with a visible seated driver, layered between body and roof. */
+  drawCarWithDriver(car: Car, camera: Camera, time: number, driver: Entity) {
+    const { pos, size } = car;
+    const pad = 80;
+    if (
+      pos.x + size.x < camera.pos.x - pad ||
+      pos.x > camera.pos.x + camera.viewport.x + pad ||
+      pos.y + size.y < camera.pos.y - pad ||
+      pos.y > camera.pos.y + camera.viewport.y + pad
+    ) return;
+    drawCarBody(this.ctx, car, time);
+    drawDriverInCar(this.ctx, car, this.sprites, driver);
+    drawCarRoof(this.ctx, car, true);
   }
 
   /** Draws a hostile. */

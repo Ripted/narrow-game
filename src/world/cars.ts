@@ -1,5 +1,6 @@
-import { Car, CarKind, TrafficRoute } from '../types';
+import { Car, CarKind, TrafficRoute, Entity } from '../types';
 import { shade, withAlpha } from '../engine/color';
+import { EntitySpriteSystem } from '../engine/entitySprite';
 
 interface CarSpec {
   w: number;
@@ -8,14 +9,20 @@ interface CarSpec {
   roof: string;
   /** Taxis and trucks get roof detailing. */
   accent?: string;
+  /** Top forward speed in px/s. */
+  maxSpeed: number;
+  /** Acceleration in px/s². */
+  accel: number;
+  /** Steering responsiveness; higher turns tighter at speed. */
+  handling: number;
 }
 
 const SPECS: Record<CarKind, CarSpec> = {
-  sedan: { w: 66, h: 34, body: '#b03030', roof: '#1c1e24' },
-  hatch: { w: 52, h: 30, body: '#2f7ab0', roof: '#1c1e24' },
-  van: { w: 74, h: 38, body: '#c8c8cc', roof: '#2a2c32' },
-  taxi: { w: 66, h: 34, body: '#e8b820', roof: '#1c1e24', accent: '#111111' },
-  truck: { w: 92, h: 44, body: '#3a5a44', roof: '#24262c', accent: '#20242a' },
+  sedan: { w: 66, h: 34, body: '#b03030', roof: '#1c1e24', maxSpeed: 300, accel: 260, handling: 1.0 },
+  hatch: { w: 52, h: 30, body: '#2f7ab0', roof: '#1c1e24', maxSpeed: 280, accel: 240, handling: 1.25 },
+  van: { w: 74, h: 38, body: '#c8c8cc', roof: '#2a2c32', maxSpeed: 230, accel: 190, handling: 0.7 },
+  taxi: { w: 66, h: 34, body: '#e8b820', roof: '#1c1e24', accent: '#111111', maxSpeed: 290, accel: 250, handling: 1.05 },
+  truck: { w: 92, h: 44, body: '#3a5a44', roof: '#24262c', accent: '#20242a', maxSpeed: 200, accel: 150, handling: 0.5 },
 };
 
 const PARKED: { kind: CarKind; x: number; y: number; angle: number }[] = [
@@ -110,8 +117,8 @@ export function carSpec(kind: CarKind): CarSpec {
   return SPECS[kind];
 }
 
-/** Draws a car from above, rotated to its heading. */
-export function drawCar(ctx: CanvasRenderingContext2D, car: Car, time: number) {
+/** Draws the car chassis: shadow, wheels, body, lights. Excludes the roof. */
+export function drawCarBody(ctx: CanvasRenderingContext2D, car: Car, time: number) {
   const s = SPECS[car.carKind];
   const cx = car.pos.x + car.size.x / 2;
   const cy = car.pos.y + car.size.y / 2;
@@ -148,11 +155,41 @@ export function drawCar(ctx: CanvasRenderingContext2D, car: Car, time: number) {
   ctx.lineWidth = 2;
   ctx.stroke();
 
+  // Headlights (glow at night) and tail lights.
+  const lit = 0.35 + 0.25 * Math.sin(time * 3 + cx * 0.01);
+  ctx.fillStyle = withAlpha('#fff4c0', lit + 0.3);
+  ctx.fillRect(w / 2 - 6, -h / 2 + 4, 4, 6);
+  ctx.fillRect(w / 2 - 6, h / 2 - 10, 4, 6);
+  ctx.fillStyle = withAlpha('#ff4030', 0.8);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 4, 4, 6);
+  ctx.fillRect(-w / 2 + 2, h / 2 - 10, 4, 6);
+
+  ctx.restore();
+}
+
+/**
+ * Draws the cabin/roof over the chassis. Split from the body so a seated
+ * driver can be drawn between the two. When `glass` is set the cabin becomes
+ * a translucent windscreen, so a driver underneath reads as *inside* the car.
+ */
+export function drawCarRoof(ctx: CanvasRenderingContext2D, car: Car, glass = false) {
+  const s = SPECS[car.carKind];
+  const cx = car.pos.x + car.size.x / 2;
+  const cy = car.pos.y + car.size.y / 2;
+  const w = car.size.x;
+  const h = car.size.y;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(car.angle);
+
   // Cabin / roof.
-  ctx.fillStyle = car.carKind === 'truck' ? shade(s.roof, 0.05) : s.roof;
+  const cab = car.carKind === 'truck' ? shade(s.roof, 0.05) : s.roof;
+  ctx.fillStyle = glass ? withAlpha(cab, 0.42) : cab;
   if (car.carKind === 'truck') {
     roundRect(ctx, -w * 0.14, -h / 2 + 4, w * 0.3, h - 8, 4);
     ctx.fill();
+    // Cargo bed stays solid; only the cab is glazed.
     ctx.fillStyle = s.accent || '#20242a';
     ctx.fillRect(-w / 2 + 4, -h / 2 + 4, w * 0.32, h - 8);
   } else {
@@ -161,7 +198,7 @@ export function drawCar(ctx: CanvasRenderingContext2D, car: Car, time: number) {
   }
 
   // Windscreen highlight.
-  ctx.fillStyle = withAlpha('#bfe8ff', 0.25);
+  ctx.fillStyle = withAlpha('#bfe8ff', glass ? 0.16 : 0.25);
   ctx.fillRect(w * 0.16, -h / 2 + 6, w * 0.08, h - 12);
 
   // Taxi roof sign.
@@ -172,15 +209,69 @@ export function drawCar(ctx: CanvasRenderingContext2D, car: Car, time: number) {
     ctx.fillRect(-4, -2, 8, 4);
   }
 
-  // Headlights (glow at night) and tail lights.
-  const lit = 0.35 + 0.25 * Math.sin(time * 3 + cx * 0.01);
-  ctx.fillStyle = withAlpha('#fff4c0', lit + 0.3);
-  ctx.fillRect(w / 2 - 6, -h / 2 + 4, 4, 6);
-  ctx.fillRect(w / 2 - 6, h / 2 - 10, 4, 6);
-  ctx.fillStyle = withAlpha('#ff4030', 0.8);
-  ctx.fillRect(-w / 2 + 2, -h / 2 + 4, 4, 6);
-  ctx.fillRect(-w / 2 + 2, h / 2 - 10, 4, 6);
+  ctx.restore();
+}
 
+/** Draws a car from above, rotated to its heading. */
+export function drawCar(ctx: CanvasRenderingContext2D, car: Car, time: number) {
+  drawCarBody(ctx, car, time);
+  drawCarRoof(ctx, car);
+}
+
+/**
+ * Draws a driver seated in a car, layered between the chassis and the roof so
+ * the upper body shows through the cabin while the legs stay hidden below the
+ * clip. Uses the same entity sprite as the world, so the driver's real
+ * appearance comes through.
+ */
+export function drawDriverInCar(
+  ctx: CanvasRenderingContext2D,
+  car: Car,
+  sprites: EntitySpriteSystem,
+  driver: Entity
+) {
+  const cx = car.pos.x + car.size.x / 2;
+  const cy = car.pos.y + car.size.y / 2;
+  const w = car.size.x;
+  const h = car.size.y;
+  const cos = Math.cos(car.angle);
+  const sin = Math.sin(car.angle);
+  const local = (lx: number, ly: number) => ({
+    x: cx + lx * cos - ly * sin,
+    y: cy + lx * sin + ly * cos,
+  });
+
+  // Clip to the cabin so only the seated upper body shows through the glass,
+  // never spilling over the hood or cargo bed.
+  const cabX = car.carKind === 'truck' ? -w * 0.14 : -w * 0.24;
+  const cabW = car.carKind === 'truck' ? w * 0.3 : w * 0.44;
+  const cabY = -h / 2 + (car.carKind === 'truck' ? 4 : 5);
+  const cabH = h - (car.carKind === 'truck' ? 8 : 10);
+
+  ctx.save();
+  ctx.beginPath();
+  const inset = 1;
+  const corners = [
+    local(cabX + inset, cabY + inset),
+    local(cabX + cabW - inset, cabY + inset),
+    local(cabX + cabW - inset, cabY + cabH - inset),
+    local(cabX + inset, cabY + cabH - inset),
+  ];
+  ctx.moveTo(corners[0].x, corners[0].y);
+  for (let i = 1; i < corners.length; i++) ctx.lineTo(corners[i].x, corners[i].y);
+  ctx.closePath();
+  ctx.clip();
+
+  // Seat the torso at the car centre: the sprite's hips land mid-body, so the
+  // head and shoulders fill the cabin and the hidden legs fall below the clip.
+  const u = Math.max(driver.size.x, 30) / 28;
+  const H = 50 * (driver.appearance?.height ?? 1) * u;
+  const spriteGroundY = driver.pos.y + driver.size.y;
+  const torsoCenterY = spriteGroundY - 0.64 * H;
+  const spriteCX = driver.pos.x + driver.size.x / 2;
+
+  ctx.translate(cx - spriteCX, cy - torsoCenterY);
+  sprites.draw(ctx, driver, { driving: true, hideName: true });
   ctx.restore();
 }
 

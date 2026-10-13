@@ -10,6 +10,8 @@ export class AudioManager {
   private ambientOsc2: OscillatorNode | null = null;
   private ambientGain: GainNode | null = null;
   muted = false;
+  /** Master volume 0..1, applied on top of the internal headroom. */
+  private volume = 0.22;
 
   private ensure(): AudioContext | null {
     if (this.muted) return null;
@@ -20,7 +22,7 @@ export class AudioManager {
       if (!AC) return null;
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.22;
+      this.master.gain.value = this.volume;
       this.master.connect(this.ctx.destination);
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
@@ -29,8 +31,18 @@ export class AudioManager {
 
   setMuted(muted: boolean) {
     this.muted = muted;
-    if (this.master) this.master.gain.value = muted ? 0 : 0.22;
+    if (this.master) this.master.gain.value = muted ? 0 : this.volume;
     if (muted) this.stopAmbient();
+  }
+
+  /** Sets the master volume (0..1). Unmutes if raised above zero. */
+  setVolume(volume: number) {
+    this.volume = Math.max(0, Math.min(1, volume));
+    if (this.master && !this.muted) this.master.gain.value = this.volume;
+  }
+
+  getVolume(): number {
+    return this.volume;
   }
 
   private tone(freq: number, dur: number, type: OscillatorType = 'square', gain = 0.2, slideTo?: number) {
@@ -72,6 +84,11 @@ export class AudioManager {
 
   hurt() {
     this.tone(120, 0.18, 'sawtooth', 0.22, 60);
+  }
+
+  /** Short engine growl; pitch tracks speed. */
+  engine(pitch: number) {
+    this.tone(pitch, 0.1, 'sawtooth', 0.06, pitch * 0.9);
   }
 
   achievement() {

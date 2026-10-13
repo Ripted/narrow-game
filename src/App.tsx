@@ -16,6 +16,8 @@ import { ITEMS, STARTING_ITEM } from './data/items';
 import { NPC as NpcType, DialogueNode, GameState, Vector2, Achievement, Interior, ShopEntry, Enemy, Car, SubstanceEffect, Appearance, BossSpec } from './types';
 import { StoryManager, QUEST_MARKERS, BOSSES, BOSS_BY_NPC, ACHIEVEMENTS } from './game/story';
 import { StateManager, SLOT_COUNT, SAVE_VERSION, migrateSave } from './game/state';
+import { SettingsStore, DEFAULT_SETTINGS } from './game/settings';
+import { carSpec } from './world/cars';
 import { WorldRuntime } from './game/world';
 import { INTERACTIVES } from './world/interactives';
 import { drawGore } from './world/enemies';
@@ -171,14 +173,20 @@ export default function App() {
   // Drivable-car state and transient tire effects.
   const activeCarRef = useRef<Car | null>(null);
   const carVelRef = useRef(0);
+  const carSteerRef = useRef(0);
   const skidRef = useRef<{ x: number; y: number; a: number; life: number }[]>([]);
   const dustRef = useRef<{ x: number; y: number; vx: number; vy: number; life: number }[]>([]);
   const shakeRef = useRef(0);
   const enemyHitRef = useRef(0);
   const [drivingName, setDrivingName] = useState<string | null>(null);
+  const [carSpeed, setCarSpeed] = useState(0);
+  const carSpeedRef = useRef(0);
+  const lastEngineRef = useRef(0);
   // ---- Mature-content state -------------------------------------------------
-  const [strongLanguage, setStrongLanguage] = useState(false);
-  const [radioOn, setRadioOn] = useState(true);
+  // Preferences load from the settings store so they survive across runs.
+  const initialSettings = useRef(SettingsStore.load());
+  const [strongLanguage, setStrongLanguage] = useState(initialSettings.current.strongLanguage);
+  const [radioOn, setRadioOn] = useState(initialSettings.current.radioOn);
   const [radioIdx, setRadioIdx] = useState(0);
   const [radioLine, setRadioLine] = useState(0);
   const [substance, setSubstance] = useState<SubstanceEffect | null>(null);
@@ -202,12 +210,31 @@ export default function App() {
     return audioRef.current;
   }, []);
 
+  // Apply persisted audio preferences once, then persist any later change.
+  useEffect(() => {
+    const a = getAudio();
+    a.setVolume(initialSettings.current.volume);
+    a.setMuted(initialSettings.current.muted);
+  }, [getAudio]);
+
+  useEffect(() => {
+    SettingsStore.save({
+      strongLanguage,
+      radioOn,
+      muted: getAudio().muted,
+      volume: getAudio().getVolume(),
+    });
+  }, [strongLanguage, radioOn, getAudio]);
+
   const resetRunRefs = () => {
     engineRef.current = null;
     worldRef.current = new WorldRuntime();
     activeInteriorRef.current = null;
     activeCarRef.current = null;
     carVelRef.current = 0;
+    carSteerRef.current = 0;
+    carSpeedRef.current = 0;
+    setCarSpeed(0);
     setDrivingName(null);
     setInsideName(null);
     lastZoneRef.current = '';
@@ -243,6 +270,29 @@ export default function App() {
     if (activeBoss) {
       setBossFight(activeBoss.npcId);
       setCombat({ active: true, hp: activeBoss.maxHp, maxHp: activeBoss.maxHp });
+    }
+    // If the run was saved mid-drive, put the player back behind the wheel so
+    // they do not spawn inside the car's collision box.
+    const savedCarId = normalized.worldSave?.drivingCarId;
+    const savedCar = savedCarId ? worldRef.current!.cars.find(c => c.id === savedCarId) : undefined;
+    if (savedCar) {
+      activeCarRef.current = savedCar;
+      carVelRef.current = 0;
+      carSteerRef.current = 0;
+      carSpeedRef.current = 0;
+      setCarSpeed(0);
+      setDrivingName(savedCar.name);
+      // The engine is rebuilt from this state, so seed the player at the car.
+      setGameState(prev => prev ? {
+        ...prev,
+        player: {
+          ...prev.player,
+          pos: {
+            x: savedCar.pos.x + savedCar.size.x / 2 - 15,
+            y: savedCar.pos.y + savedCar.size.y / 2 - 15,
+          },
+        },
+      } : prev);
     }
     getAudio().blip();
   };
@@ -643,28 +693,45 @@ export default function App() {
         if (!inDialogue && !paused) {
           if (dt > 0) playtimeRef.current += dt;
 
-          const throttle = movement.x;          // forward / reverse
-          const steer = movement.y;             // left / right
+          const throttle = movement.x;          // W/S: forward / reverse
+          const steerInput = movement.y;        // A/D: left / right
           const speed = carVelRef.current;
-          carVelRef.current += throttle * 240 * dtSec - speed * 1.4 * dtSec;
-          carVelRef.current = Math.max(-120, Math.min(240, carVelRef.current));
-          // A slow idle stop when nobody is pressing anything.
-          if (throttle === 0) carVelRef.current *= (1 - Math.min(1, dtSec * 1.6));
-          car.angle += steer * (carVelRef.current / 240) * 2.4 * dtSec * (carVelRef.current >= 0 ? 1 : -1);
+
+          // Longitudinal: engine force, rolling drag and a speed cap. Reverse
+          // tops out lower than forward so it is a manoeuvre, not a shortcut.
+          const spec = carSpec(car.carKind);
+          const maxFwd = spec.maxSpeed;
+          const maxRev = spec.maxSpeed * 0.4;
+          const accel = spec.accel;
+          carVelRef.current += throttle * accel * dtSec;
+          carVelRef.current -= speed * 1.1 * dtSec;            // drag
+          if (throttle === 0) carVelRef.current *= (1 - Math.min(1, dtSec * 2.2)); // engine braking
+          carVelRef.current = Math.max(-maxRev, Math.min(maxFwd, carVelRef.current));
+
+          // Steering eases toward the input so the wheel does not snap.
+          const targetSteer = steerInput * spec.handling;
+          carSteerRef.current += (targetSteer - carSteerRef.current) * Math.min(1, dtSec * 7);
+
+          // Turn rate scales with speed (no turning while parked) and flips in
+          // reverse, so the car steers like a real one instead of a turret.
+          const speedRatio = Math.min(1, Math.abs(carVelRef.current) / maxFwd);
+          const direction = carVelRef.current >= 0 ? 1 : -1;
+          car.angle += carSteerRef.current * speedRatio * 2.6 * dtSec * direction;
 
           const vx = Math.cos(car.angle) * carVelRef.current * dtSec;
           const vy = Math.sin(car.angle) * carVelRef.current * dtSec;
 
-          // Buildings, live NPCs and closed gates stop the car hard.
-          const blockers = [...BUILDINGS, ...world.visibleNpcs(), ...world.exteriorSolids()];
+          // Buildings, other cars, live NPCs and closed gates stop the car hard.
+          const blockers = [...BUILDINGS, ...world.cars.filter(c => c !== car), ...world.visibleNpcs(), ...world.exteriorSolids()];
           let hit = false;
           if (!CollisionSystem.checkCollision({ x: car.pos.x + vx, y: car.pos.y }, car.size, blockers)) car.pos.x += vx;
           else hit = true;
           if (!CollisionSystem.checkCollision({ x: car.pos.x, y: car.pos.y + vy }, car.size, blockers)) car.pos.y += vy;
           else hit = true;
           if (hit && Math.abs(carVelRef.current) > 40) {
-            shakeRef.current = Math.min(1, Math.abs(carVelRef.current) / 240);
+            shakeRef.current = Math.min(1, Math.abs(carVelRef.current) / maxFwd);
             carVelRef.current *= -0.25;
+            carSteerRef.current = 0;
             getAudio().hurt();
           }
           car.pos = {
@@ -677,7 +744,8 @@ export default function App() {
 
           // Tire marks and dust while moving fast.
           const fast = Math.abs(carVelRef.current) > 90;
-          if (steer !== 0 && fast) skidRef.current.push({ x: car.pos.x + car.size.x / 2, y: car.pos.y + car.size.y / 2, a: car.angle, life: 1.4 });
+          const hardTurn = Math.abs(carSteerRef.current) > 0.55;
+          if (hardTurn && fast) skidRef.current.push({ x: car.pos.x + car.size.x / 2, y: car.pos.y + car.size.y / 2, a: car.angle, life: 1.4 });
           if (fast) dustRef.current.push({ x: car.pos.x + car.size.x / 2 - Math.cos(car.angle) * car.size.x / 2, y: car.pos.y + car.size.y / 2 - Math.sin(car.angle) * car.size.y / 2, vx: -Math.cos(car.angle) * 20 + (Math.random() - 0.5) * 20, vy: -Math.sin(car.angle) * 20 + (Math.random() - 0.5) * 20, life: 0.6 });
           skidRef.current = skidRef.current.filter(s => (s.life -= dtSec) > 0);
           dustRef.current = dustRef.current.filter(d => { d.x += d.vx * dtSec; d.y += d.vy * dtSec; return (d.life -= dtSec) > 0; });
@@ -691,6 +759,19 @@ export default function App() {
             addToast('Roadkill', `You flattened a ${victim.enemyKind}.`);
             getAudio().hit();
             setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, did_roadkill: true } }) : prev);
+          }
+
+          // Engine note follows speed; the HUD speed readout follows too.
+          const kmh = Math.round(Math.abs(carVelRef.current) * 0.4);
+          if (kmh !== carSpeedRef.current) {
+            carSpeedRef.current = kmh;
+            setCarSpeed(kmh);
+          }
+          const snd = getAudio();
+          const pitch = 70 + speedRatio * 180;
+          if (Math.abs(carVelRef.current) > 15 && now - lastEngineRef.current > 110) {
+            lastEngineRef.current = now;
+            snd.engine(pitch);
           }
 
           camera.update(player.pos);
@@ -713,8 +794,7 @@ export default function App() {
         for (const c of world.cars) if (c !== car) renderer.drawCar(c, camera, now / 1000);
         for (const e of world.enemies) renderer.drawEnemy(e, camera, now / 1000);
         for (const p of world.police) renderer.drawEnemy(p, camera, now / 1000);
-        renderer.drawCar(car, camera, now / 1000);
-        renderer.drawEntity(player, camera, undefined, dt);
+        renderer.drawCarWithDriver(car, camera, now / 1000, player);
         drawDust(renderer.ctx);
         renderer.drawWorldLights(camera);
         renderer.ctx.restore();
@@ -954,28 +1034,52 @@ export default function App() {
     function enterCar(car: Car) {
       activeCarRef.current = car;
       carVelRef.current = 0;
+      carSteerRef.current = 0;
+      carSpeedRef.current = 0;
+      setCarSpeed(0);
       setDrivingName(car.name);
       setInteractPrompt('WASD to drive · E to exit');
       getAudio().interact();
-      // Grand theft auto: commandeering any car is a crime.
       const w = getWorld();
+      w.setDrivenCar(car.id);
+      // Grand theft auto: commandeering any car is a crime.
       if (!car.id.startsWith('car_stolen')) {
         w.commitCrime('grand theft auto', 0.22);
         setGameState(prev => prev ? ({ ...prev, flags: { ...prev.flags, car_stolen: true } }) : prev);
       }
     }
 
-    /** Leaves the current car, stepping out to the south. */
+    /**
+     * Leaves the current car. The player steps out to whichever side has room,
+     * so exiting against a wall does not eject them into a building.
+     */
     function exitCar() {
       const car = activeCarRef.current;
       activeCarRef.current = null;
       carVelRef.current = 0;
+      carSteerRef.current = 0;
+      carSpeedRef.current = 0;
+      setCarSpeed(0);
       setDrivingName(null);
       setInteractPrompt(null);
       if (!car) return;
+      worldRef.current!.setDrivenCar(null);
+
+      const solids = [...BUILDINGS, ...worldRef.current!.visibleNpcs(), ...worldRef.current!.obstacleSolids()];
+      const centreX = car.pos.x + car.size.x / 2 - player.size.x / 2;
+      const centreY = car.pos.y + car.size.y / 2 - player.size.y / 2;
+      const candidates = [
+        { x: centreX, y: car.pos.y + car.size.y + 12 },  // south
+        { x: centreX, y: car.pos.y - player.size.y - 12 }, // north
+        { x: car.pos.x + car.size.x + 12, y: centreY },    // east
+        { x: car.pos.x - player.size.x - 12, y: centreY }, // west
+      ];
+      const spot = candidates.find(c =>
+        !CollisionSystem.checkCollision(c, player.size, solids)
+      ) || candidates[0];
       player.pos = {
-        x: Math.max(0, Math.min(MAP_WIDTH - player.size.x, car.pos.x + car.size.x / 2 - player.size.x / 2)),
-        y: Math.max(0, Math.min(MAP_HEIGHT - player.size.y, car.pos.y + car.size.y + 10)),
+        x: Math.max(0, Math.min(MAP_WIDTH - player.size.x, spot.x)),
+        y: Math.max(0, Math.min(MAP_HEIGHT - player.size.y, spot.y)),
       };
       getAudio().blip();
     }
@@ -1682,6 +1786,13 @@ export default function App() {
         </div>
       )}
 
+      {drivingName && (
+        <div className="drive-hud">
+          <div className="drive-speed">{carSpeed}<span className="drive-unit">km/h</span></div>
+          <div className="drive-gear">{carVelRef.current < -1 ? 'R' : carSpeed < 1 ? 'N' : 'D'}</div>
+        </div>
+      )}
+
       {wantedLevel > 0 && (
         <div className="wanted-stars" title="Wanted level">
           {[0, 1, 2, 3, 4].map(i => (
@@ -1925,9 +2036,14 @@ export default function App() {
           </button>
           <button
             className="pause-button grey"
-            onClick={() => { const a = getAudio(); a.setMuted(true); addToast('Audio', 'Muted.'); }}
+            onClick={() => {
+              const a = getAudio();
+              const next = !a.muted;
+              a.setMuted(next);
+              addToast('Audio', next ? 'Muted.' : 'Unmuted.');
+            }}
           >
-            Mute Audio
+            Audio: {getAudio().muted ? 'Muted' : 'On'}
           </button>
           <button
             className="pause-button purple"

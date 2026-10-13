@@ -32,12 +32,24 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- Driving is now a proper car model. Each car kind has its own top speed,
+  acceleration and handling; steering scales with speed, flips in reverse, and
+  the car cannot turn while parked. The player sprite is drawn seated inside
+  the cabin (shown through a glazed roof) instead of standing on the car.
+- Entering a car records it in the world save, and loading a run saved mid-drive
+  puts you back behind the wheel.
+- Audio preferences persist between sessions via a settings store, and the pause
+  menu's audio toggle now mutes and unmutes instead of only muting.
 - Input actions are now edge-triggered, so holding `Q`/`I`/`ESC` no longer
   repeats the action every frame. Arrow keys also move the player.
 - NPCs are solid and the player is clamped to the map bounds; the previous
   `clampToWorld` implementation was a no-op.
 - The renderer now handles window resize and culls off-screen entities.
 - The page has a real title and a favicon.
+
+### Added
+
+- A driving HUD with a live speed readout and gear indicator while in a car.
 
 ### Removed
 
@@ -48,6 +60,8 @@ All notable changes to this project are documented here. The format is based on
 
 - The game failed to start because the renderer was created before the canvas
   mounted, leaving the player stuck on the character-select screen.
+- Exiting a car next to a wall no longer ejects the player into a building;
+  they step out to whichever side has room.
 
 ## [0.2.0] - Save system hardening
 

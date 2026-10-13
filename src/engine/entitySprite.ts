@@ -74,7 +74,7 @@ export class EntitySpriteSystem {
   draw(
     ctx: CanvasRenderingContext2D,
     entity: Entity,
-    opts: { hp?: { hp: number; maxHp: number } } = {}
+    opts: { hp?: { hp: number; maxHp: number }; driving?: boolean; hideName?: boolean } = {}
   ) {
     if (entity.type === 'object') {
       this.drawObject(ctx, entity);
@@ -84,7 +84,8 @@ export class EntitySpriteSystem {
     const look = entity.appearance ?? defaultAppearance(entity.color);
     const state = this.states.get(entity.id);
     const phase = state?.phase ?? 0;
-    const moving = state?.moving ?? false;
+    // A seated driver does not walk: freeze the cycle and hide the legs.
+    const moving = opts.driving ? false : (state?.moving ?? false);
     const facing = state?.facing ?? 'down';
 
     const cx = entity.pos.x + entity.size.x / 2;
@@ -102,14 +103,16 @@ export class EntitySpriteSystem {
 
     ctx.save();
     if (look.opacity !== undefined) ctx.globalAlpha = look.opacity;
-    this.drawBody(ctx, cx, groundY, u, H, look, phase, moving, facing);
+    this.drawBody(ctx, cx, groundY, u, H, look, phase, moving, facing, !!opts.driving);
     ctx.restore();
 
     // Nameplate above the head.
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.font = `${Math.round(11 + u)}px Inter`;
-    ctx.textAlign = 'center';
-    ctx.fillText(entity.name, cx, groundY - H - 8 * u);
+    if (!opts.hideName) {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.font = `${Math.round(11 + u)}px Inter`;
+      ctx.textAlign = 'center';
+      ctx.fillText(entity.name, cx, groundY - H - 8 * u);
+    }
 
     if (opts.hp) {
       this.drawHealthBar(ctx, cx, groundY - H - 4 * u, Math.max(entity.size.x, 44), opts.hp);
@@ -368,7 +371,8 @@ export class EntitySpriteSystem {
     look: Appearance,
     phase: number,
     moving: boolean,
-    facing: Facing
+    facing: Facing,
+    seated = false
   ) {
     const build = look.build;
     const hipY = groundY - 0.5 * H;
@@ -449,7 +453,42 @@ export class EntitySpriteSystem {
       ctx.fill();
     };
 
-    if (side) {
+    // Seated driver: no legs (they are inside the cabin) and arms reaching
+    // forward to a wheel in front of the lap.
+    const seatedArm = (sx: number, sideFar: boolean) => () => {
+      const sleeveColor = sideFar ? shade(look.shirt, -0.22) : look.shirt;
+      const skinColor = sideFar ? shade(look.skin, -0.18) : look.skin;
+      const outSign = sx < cx ? -1 : 1;
+      const elbowX = sx + outSign * 0.03 * H;
+      const elbowY = shoulderY + 0.11 * H + bob;
+      const handX = cx + outSign * 0.07 * H;
+      const handY = shoulderY + 0.24 * H + bob;
+
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = sleeveColor;
+      ctx.lineWidth = 3 * u * build;
+      ctx.beginPath();
+      ctx.moveTo(sx, shoulderY + bob);
+      ctx.lineTo(elbowX, elbowY);
+      ctx.stroke();
+
+      ctx.strokeStyle = skinColor;
+      ctx.lineWidth = 2.5 * u * build;
+      ctx.beginPath();
+      ctx.moveTo(elbowX, elbowY);
+      ctx.lineTo(handX, handY);
+      ctx.stroke();
+
+      ctx.fillStyle = skinColor;
+      ctx.beginPath();
+      ctx.arc(handX, handY, 1.5 * u, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    if (seated) {
+      drawOrderBack.push(seatedArm(cx - shoulderHW - 0.5 * u, true));
+      drawOrderFront.push(seatedArm(cx + shoulderHW + 0.5 * u, false));
+    } else if (side) {
       // Facing left/right: far limbs behind the torso, near limbs in front.
       const nearSign = facing === 'right' ? 1 : -1;
       drawOrderBack.push(leg(cx - legHalf * nearSign, swingB, phase + Math.PI, false));

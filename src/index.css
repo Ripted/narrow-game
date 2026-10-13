@@ -1308,3 +1308,44 @@ body {
   font-size: 12px;
   margin-top: 1px;
 }
+
+/* Driving HUD: speed readout and gear, bottom-centre while in a car. */
+.drive-hud {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  background: rgba(10, 12, 16, 0.86);
+  border: 1px solid rgba(0, 255, 255, 0.35);
+  border-radius: 10px;
+  padding: 6px 16px;
+  z-index: 55;
+}
+
+.drive-speed {
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  min-width: 62px;
+  text-align: right;
+}
+
+.drive-unit {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b96a3;
+  margin-left: 4px;
+  letter-spacing: 0.08em;
+}
+
+.drive-gear {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-neon-cyan, #00ffff);
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  padding-left: 12px;
+}

@@ -74,6 +74,13 @@ genre's excesses rather than reproducing them.
   Meme Dust and Server Nectar are invented in-universe brands.
 - **Radio** — `RADIO_STATIONS` in `src/data/humor.ts` are DJ patter snippets
   cycled in the HUD ticker by `App.tsx`. Pure flavour, no audio assets.
+- **Driving** — `App.tsx` runs a per-car model from `carSpec(car.carKind)`
+  (`maxSpeed`, `accel`, `handling` in `src/world/cars.ts`): engine force plus
+  rolling drag, steering that scales with speed and flips in reverse, and no
+  turning while parked. The driver is drawn *inside* the car — `drawCarBody`
+  then `drawDriverInCar` (clipped to the cabin, seated pose via the
+  `driving` flag in `entitySprite.ts`) then a glazed `drawCarRoof`. A driven car
+  is remembered in `WorldRuntime.drivenCarId` so its position survives a save.
 - **Humour** — `GRAFFITI` and the raunchy dialogue trees (`bandit_main`,
   `mixologist_main`, `goose_main` in `src/data/characters.ts`) keep the tone
   satirical and in-world: rude NEET-humour aimed at the genre, never at real
@@ -96,9 +103,14 @@ so never read a freshly loaded state without normalising it first.
 
 Every save — manual or autosave — must include a `WorldSave` snapshot from
 `world.save()` (clock, NPC positions, opened chests, thrown levers, gates,
-killed enemies, weather, gore). Skipping it makes a load silently reset the
-world. `player.equipped` and `player.playtime` must also be written on save,
-otherwise loading reverts the weapon and zeroes the clock.
+killed enemies, weather, gore, wanted heat, and the driven car's position).
+Skipping it makes a load silently reset the world. `player.equipped` and
+`player.playtime` must also be written on save, otherwise loading reverts the
+weapon and zeroes the clock.
+
+Player preferences (strong language, radio, audio mute/volume) live in a
+separate store, `SettingsStore` in `src/game/settings.ts`, under
+`narrow_arrow_settings`, so clearing a save never resets them.
 
 The pause menu exposes the slot manager (`SaveMenu`), achievements
 (`AchievementsPanel`), and a "New Game" action that clears all slots.

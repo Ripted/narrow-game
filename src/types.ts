@@ -353,6 +353,19 @@ export interface WorldSave {
   gore?: GoreDecal[];
   /** Persistent wanted heat so a chase survives a reload. */
   wantedHeat?: number;
+  /** Position/heading of the car the player was driving, if any. */
+  drivingCarId?: string;
+  drivingCarPos?: Vector2;
+  drivingCarAngle?: number;
+}
+
+/** Player preferences persisted across runs (audio, content toggles). */
+export interface GameSettings {
+  strongLanguage: boolean;
+  radioOn: boolean;
+  muted: boolean;
+  /** Master volume, 0..1. */
+  volume: number;
 }
 
 export interface WorldObject extends Entity {

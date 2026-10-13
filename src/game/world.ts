@@ -67,6 +67,8 @@ export class WorldRuntime {
   pendingPoliceHit = false;
   /** Crime events raised this frame, for the app to toast/score. */
   crimeEvents: string[] = [];
+  /** Id of the parked car currently being driven, so it saves in place. */
+  drivenCarId: string | null = null;
   /** Ids of fixtures already consumed (chests opened, levers pulled). */
   usedInteractives = new Set<string>();
   /** Lever/gate flags that have been activated, so they persist. */
@@ -577,6 +579,16 @@ export class WorldRuntime {
       weather: this.weather.weather,
       gore: this.gore.slice(-120),
       wantedHeat: this.wanted.heat,
+      drivingCarId: this.drivenCarId || undefined,
+      drivingCarPos: this.drivenCarId
+        ? (() => {
+            const c = this.cars.find((car) => car.id === this.drivenCarId);
+            return c ? { ...c.pos } : undefined;
+          })()
+        : undefined,
+      drivingCarAngle: this.drivenCarId
+        ? this.cars.find((car) => car.id === this.drivenCarId)?.angle
+        : undefined,
     };
   }
 
@@ -606,5 +618,18 @@ export class WorldRuntime {
       for (let i = 0; i < STAR_HEAT.length; i++) if (this.wanted.heat >= STAR_HEAT[i]) level = i + 1;
       this.wanted.level = level;
     }
+    // A commandeered car is left where it was parked when the run was saved.
+    if (s.drivingCarId && s.drivingCarPos) {
+      const car = this.cars.find((c) => c.id === s.drivingCarId);
+      if (car) {
+        car.pos = { ...s.drivingCarPos };
+        if (typeof s.drivingCarAngle === 'number') car.angle = s.drivingCarAngle;
+      }
+    }
+  }
+
+  /** Records the car currently being driven so its position survives a save. */
+  setDrivenCar(id: string | null) {
+    this.drivenCarId = id;
   }
 }
